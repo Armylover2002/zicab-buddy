@@ -1522,6 +1522,29 @@ export const createRideRecord = async ({
   throw lastError || new ApiError(500, 'Failed to create ride with promo');
 };
 
+/**
+ * The driver's last known position, to put on a ride the moment they accept
+ * it. Without it the rider's map had no car to draw until the driver's phone
+ * sent its first live fix - several seconds, longer on a weak signal. The live
+ * fixes overwrite it as they arrive. Nothing when the driver has no usable
+ * position on record.
+ */
+const driverLocationSeed = (driver) => {
+  const coordinates = driver?.location?.coordinates;
+  if (!Array.isArray(coordinates) || coordinates.length !== 2) return {};
+  const [lng, lat] = coordinates.map(Number);
+  if (!Number.isFinite(lat) || !Number.isFinite(lng) || (lat === 0 && lng === 0)) return {};
+  return {
+    lastDriverLocation: {
+      type: 'Point',
+      coordinates: [lng, lat],
+      heading: null,
+      speed: null,
+      updatedAt: new Date(),
+    },
+  };
+};
+
 export const getRideDetails = async (rideId) => {
   const ride = await Ride.findById(rideId)
     .populate('deliveryId')
@@ -1971,6 +1994,7 @@ export const acceptRideAssignment = async ({ rideId, driverId }) => {
         status: RIDE_STATUS.ACCEPTED,
         liveStatus: RIDE_LIVE_STATUS.ACCEPTED,
         acceptedAt: new Date(),
+        ...driverLocationSeed(claimedDriver),
       },
     },
     { new: true },
@@ -2536,6 +2560,7 @@ export const acceptRideBidAssignment = async ({ rideId, bidId, userId }) => {
       ride.liveStatus = RIDE_LIVE_STATUS.ACCEPTED;
       ride.biddingStatus = 'accepted';
       ride.acceptedAt = new Date();
+      Object.assign(ride, driverLocationSeed(driver));
       driver.isOnRide = !isRideScheduledForFuture(ride);
       bid.status = 'accepted';
 

@@ -6768,6 +6768,8 @@ const listAdminRides = async ({
   const mongoFilter = {
     ...baseFilter,
     ...buildRideStatusFilter(tab, variant),
+    // Trips an admin deleted stay in the database, out of these lists.
+    adminDeletedAt: null,
   };
 
   const searchClauses = await buildAdminRideSearchClauses(search, {
@@ -6848,6 +6850,75 @@ export const listIntercityTrips = async (query = {}) => {
     serializer: toAdminIntercityTripRow,
     includeIntercity: true,
   });
+};
+
+const FINISHED_RIDE_STATUSES = new Set([RIDE_STATUS.COMPLETED, RIDE_STATUS.CANCELLED]);
+
+const loadRideForAdminAction = async (rideId) => {
+  if (!mongoose.Types.ObjectId.isValid(String(rideId))) {
+    throw new ApiError(400, 'Invalid ride id');
+  }
+  const ride = await Ride.findById(rideId).select('status liveStatus adminDeletedAt').lean();
+  if (!ride || ride.adminDeletedAt) {
+    throw new ApiError(404, 'Ride not found');
+  }
+  return ride;
+};
+
+/// Cancels a ride from the admin Trips page: stops the search, frees the
+/// driver and rider, and tells both apps. A finished ride cannot be cancelled.
+export const cancelRideRequestAsAdmin = async (rideId, { reason = '' } = {}, currentAdmin = null) => {
+  if (currentAdmin) {
+    assertAdminPermission(currentAdmin, 'trips.view', 'trips');
+  }
+  const ride = await loadRideForAdminAction(rideId);
+  if (ride.status === RIDE_STATUS.COMPLETED) {
+    throw new ApiError(409, 'A completed trip cannot be cancelled');
+  }
+  if (ride.status === RIDE_STATUS.CANCELLED || ride.liveStatus === RIDE_LIVE_STATUS.CANCELLED) {
+    throw new ApiError(409, 'This trip is already cancelled');
+  }
+
+  const cancelled = await cancelRideByAdmin(rideId);
+  if (!cancelled) {
+    throw new ApiError(404, 'Ride not found');
+  }
+  await Ride.updateOne(
+    { _id: rideId },
+    {
+      $set: {
+        cancelledBy: `admin:${currentAdmin?.name || currentAdmin?.email || 'admin'}`,
+        cancelReason: String(reason || '').trim().slice(0, 300) || 'Cancelled by admin',
+        cancelledAt: new Date(),
+      },
+    },
+  );
+
+  return { id: String(cancelled._id), status: cancelled.status, liveStatus: cancelled.liveStatus };
+};
+
+/// Removes a finished (completed or cancelled) trip from the admin lists. A
+/// live trip must be cancelled first, so deleting can never strand a driver
+/// or rider mid-ride. The record is kept for earnings and reports.
+export const deleteRideRequestAsAdmin = async (rideId, currentAdmin = null) => {
+  if (currentAdmin) {
+    assertAdminPermission(currentAdmin, 'trips.view', 'trips');
+  }
+  const ride = await loadRideForAdminAction(rideId);
+  if (!FINISHED_RIDE_STATUSES.has(ride.status)) {
+    throw new ApiError(409, 'Cancel this trip first - only completed or cancelled trips can be deleted');
+  }
+
+  await Ride.updateOne(
+    { _id: rideId, adminDeletedAt: null },
+    {
+      $set: {
+        adminDeletedAt: new Date(),
+        adminDeletedBy: String(currentAdmin?.name || currentAdmin?.email || 'admin'),
+      },
+    },
+  );
+  return { id: String(rideId), deleted: true };
 };
 
 export const deleteOngoingRide = async (rideId) => {

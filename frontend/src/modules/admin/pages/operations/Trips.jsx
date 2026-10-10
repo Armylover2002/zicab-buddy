@@ -1,7 +1,9 @@
 import React, { useState, useEffect, useCallback, useMemo, useRef } from 'react';
-import { Filter, MoreVertical, Search, Loader2, ChevronRight, Menu, X, Eye, UserPlus, MapPin, XCircle, FileText } from 'lucide-react';
+import { Filter, MoreVertical, Search, Loader2, ChevronRight, Menu, X, Eye, UserPlus, MapPin, XCircle, FileText, Trash2 } from 'lucide-react';
 import { motion } from 'framer-motion';
 import { adminService } from '../../services/adminService';
+import { useNavigate } from 'react-router-dom';
+import toast from 'react-hot-toast';
 
 const STATUS_STYLES = {
   CANCELLED: 'bg-red-100 text-red-700',
@@ -108,9 +110,9 @@ const handlePrintInvoice = (trip) => {
     alert("Please allow popups to print invoices.");
     return;
   }
-  
+
   const formattedDate = formatDate(trip.date);
-  
+
   printWindow.document.write(`
     <!DOCTYPE html>
     <html>
@@ -148,7 +150,7 @@ const handlePrintInvoice = (trip) => {
           This is a computer generated invoice and requires no signature.
         </div>
         <script>
-          window.onload = () => { 
+          window.onload = () => {
             setTimeout(() => { window.print(); window.close(); }, 300);
           }
         </script>
@@ -159,7 +161,7 @@ const handlePrintInvoice = (trip) => {
 };
 
 // Use Portal for dropdowns or handle within table row? Handling relative to table row.
-const ActionMenu = ({ row, onViewDetails, onPrintInvoice }) => {
+const ActionMenu = ({ row, onViewDetails, onPrintInvoice, onCancel, onDelete, onTrack, busy }) => {
   const [isOpen, setIsOpen] = useState(false);
   const menuRef = useRef(null);
 
@@ -176,11 +178,10 @@ const ActionMenu = ({ row, onViewDetails, onPrintInvoice }) => {
   const isCompleted = row.tripStatus === 'COMPLETED';
   const isCancelled = row.tripStatus === 'CANCELLED';
   const isOngoing = row.tripStatus === 'ONGOING' || row.tripStatus === 'ACCEPTED';
-  const hasDriver = row.driverName !== '--';
 
   return (
     <div className="relative" ref={menuRef}>
-      <button 
+      <button
         onClick={() => setIsOpen(!isOpen)}
         className="p-1.5 text-gray-400 hover:text-gray-900 hover:bg-gray-100 rounded-lg transition-colors"
       >
@@ -189,31 +190,43 @@ const ActionMenu = ({ row, onViewDetails, onPrintInvoice }) => {
 
       {isOpen && (
         <div className="absolute right-0 top-full mt-1 w-48 bg-white rounded-xl shadow-lg border border-gray-100 py-1.5 z-50 overflow-hidden">
-          <button 
+          <button
             onClick={() => { setIsOpen(false); onViewDetails(); }}
             className="w-full text-left px-4 py-2 text-xs font-semibold text-gray-700 hover:bg-yellow-50 hover:text-yellow-900 flex items-center gap-2"
           >
             <Eye size={14} /> View Details
           </button>
-          <button 
-            disabled={isCompleted || isCancelled || isOngoing || hasDriver}
-            className="w-full text-left px-4 py-2 text-xs font-semibold text-gray-700 hover:bg-yellow-50 hover:text-yellow-900 flex items-center gap-2 disabled:opacity-40 disabled:hover:bg-white disabled:hover:text-gray-700"
+          {/* Manual assignment is not built on the server yet. */}
+          <button
+            disabled
+            title="Coming soon - riders are matched to drivers automatically"
+            className="w-full text-left px-4 py-2 text-xs font-semibold text-gray-700 flex items-center gap-2 opacity-40 cursor-not-allowed"
           >
-            <UserPlus size={14} /> Assign Driver
+            <UserPlus size={14} /> Assign Driver <span className="ml-auto text-[9px] font-medium">Soon</span>
           </button>
-          <button 
+          <button
             disabled={!isOngoing}
+            onClick={() => { setIsOpen(false); onTrack(); }}
             className="w-full text-left px-4 py-2 text-xs font-semibold text-gray-700 hover:bg-yellow-50 hover:text-yellow-900 flex items-center gap-2 disabled:opacity-40 disabled:hover:bg-white disabled:hover:text-gray-700"
           >
             <MapPin size={14} /> Track Trip
           </button>
-          <button 
-            disabled={isCompleted || isCancelled}
+          <button
+            disabled={isCompleted || isCancelled || busy}
+            onClick={() => { setIsOpen(false); onCancel(); }}
             className="w-full text-left px-4 py-2 text-xs font-semibold text-red-600 hover:bg-red-50 flex items-center gap-2 disabled:opacity-40 disabled:hover:bg-white"
           >
             <XCircle size={14} /> Cancel Trip
           </button>
-          <button 
+          <button
+            disabled={!(isCompleted || isCancelled) || busy}
+            onClick={() => { setIsOpen(false); onDelete(); }}
+            title={isCompleted || isCancelled ? 'Remove this trip from the list' : 'Cancel the trip first'}
+            className="w-full text-left px-4 py-2 text-xs font-semibold text-red-600 hover:bg-red-50 flex items-center gap-2 disabled:opacity-40 disabled:hover:bg-white"
+          >
+            <Trash2 size={14} /> Delete Trip
+          </button>
+          <button
             onClick={() => { setIsOpen(false); onPrintInvoice(); }}
             className="w-full text-left px-4 py-2 text-xs font-semibold text-gray-700 hover:bg-yellow-50 hover:text-yellow-900 flex items-center gap-2 border-t border-gray-50 mt-1 pt-2"
           >
@@ -240,6 +253,8 @@ const Trips = () => {
   });
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
+  const [busyId, setBusyId] = useState('');
+  const navigate = useNavigate();
 
   // Filter State
   const [showFilters, setShowFilters] = useState(false);
@@ -320,7 +335,7 @@ const Trips = () => {
       if (activeFilters.paymentOption && row.paymentOption.toLowerCase() !== activeFilters.paymentOption.toLowerCase()) return false;
       if (activeFilters.driverAssigned === 'assigned' && row.driverName === '--') return false;
       if (activeFilters.driverAssigned === 'unassigned' && row.driverName !== '--') return false;
-      
+
       if (activeFilters.dateFrom || activeFilters.dateTo) {
         const rowDate = new Date(row.date);
         if (!isNaN(rowDate.getTime())) {
@@ -339,6 +354,41 @@ const Trips = () => {
     });
   }, [rows, activeFilters]);
 
+  const rideIdOf = (row) => row.id || row._id || row.rideId;
+
+  // Stops the search, frees the driver and rider, and tells both apps.
+  const cancelTrip = async (row) => {
+    const reason = window.prompt(`Cancel trip ${row.requestId}? Optional reason for the rider and driver:`, '');
+    if (reason === null) return;
+    setBusyId(rideIdOf(row));
+    try {
+      await adminService.cancelRideRequest(rideIdOf(row), reason);
+      toast.success(`Trip ${row.requestId} cancelled`);
+      await loadRows();
+    } catch (err) {
+      toast.error(err?.response?.data?.message || err?.message || 'Could not cancel the trip');
+    } finally {
+      setBusyId('');
+    }
+  };
+
+  // Hides a finished trip from the list; the record stays for reports.
+  const deleteTrip = async (row) => {
+    if (!window.confirm(`Delete trip ${row.requestId} from the list? Earnings and reports keep it.`)) return;
+    setBusyId(rideIdOf(row));
+    try {
+      await adminService.deleteRideRequest(rideIdOf(row));
+      toast.success(`Trip ${row.requestId} deleted`);
+      await loadRows();
+    } catch (err) {
+      toast.error(err?.response?.data?.message || err?.message || 'Could not delete the trip');
+    } finally {
+      setBusyId('');
+    }
+  };
+
+  const trackTrip = (row) => navigate(`/admin/ongoing?ride=${encodeURIComponent(rideIdOf(row))}`);
+
   const applyFilters = () => {
     setActiveFilters(draftFilters);
     setShowFilters(false);
@@ -356,7 +406,7 @@ const Trips = () => {
   return (
     <div className="min-h-screen bg-gray-50 flex flex-col font-sans">
       <div className="px-4 py-2 md:px-6 md:pt-2 md:pb-6 space-y-4 max-w-full">
-        
+
         {/* Header */}
         <div className="flex items-center justify-between px-4 py-3 bg-white rounded-xl shadow-sm border border-gray-100">
           <h1 className="text-xl font-bold tracking-tight text-gray-900">Trip Requests</h1>
@@ -370,10 +420,10 @@ const Trips = () => {
 
         {/* Main Content Box */}
         <div className="rounded-xl border border-gray-200 bg-white shadow-sm flex flex-col relative">
-          
+
           {/* Controls Bar */}
           <div className="flex flex-col gap-4 border-b border-gray-100 px-4 py-3 lg:flex-row lg:items-center">
-            
+
             <div className="flex items-center gap-2 text-sm font-medium text-gray-500 shrink-0">
               <span>Show</span>
               <select
@@ -415,7 +465,7 @@ const Trips = () => {
                   className="h-8 w-full sm:w-48 rounded-md border border-gray-200 bg-gray-50 pl-8 pr-3 text-[11px] outline-none focus:bg-white focus:border-yellow-400 focus:ring-1 focus:ring-yellow-400 transition-all"
                 />
               </div>
-              <button 
+              <button
                 onClick={() => setShowFilters(!showFilters)}
                 className={`flex h-8 items-center gap-1.5 px-3 rounded-md text-[11px] font-bold transition-colors border relative ${activeFilterCount > 0 ? 'bg-yellow-400 text-black border-yellow-400 shadow-sm' : 'bg-white text-gray-700 border-gray-200 hover:bg-gray-50'}`}
               >
@@ -436,12 +486,12 @@ const Trips = () => {
                 <h3 className="font-bold text-gray-900 text-xs">Advanced Filters</h3>
                 <button onClick={() => setShowFilters(false)} className="text-gray-400 hover:text-gray-900 bg-gray-50 p-1 rounded-md"><X size={14}/></button>
               </div>
-              
+
               <div className="space-y-3">
                 <div>
                   <label className="block text-[10px] font-bold text-gray-500 mb-1">Transport Type</label>
-                  <select 
-                    value={draftFilters.transportType} 
+                  <select
+                    value={draftFilters.transportType}
                     onChange={e => setDraftFilters({...draftFilters, transportType: e.target.value})}
                     className="w-full h-8 border border-gray-200 rounded-md bg-gray-50 px-2 text-xs outline-none focus:border-yellow-400"
                   >
@@ -452,11 +502,11 @@ const Trips = () => {
                     <option value="bus">Bus</option>
                   </select>
                 </div>
-                
+
                 <div>
                   <label className="block text-[10px] font-bold text-gray-500 mb-1">Payment Option</label>
-                  <select 
-                    value={draftFilters.paymentOption} 
+                  <select
+                    value={draftFilters.paymentOption}
                     onChange={e => setDraftFilters({...draftFilters, paymentOption: e.target.value})}
                     className="w-full h-8 border border-gray-200 rounded-md bg-gray-50 px-2 text-xs outline-none focus:border-yellow-400"
                   >
@@ -470,15 +520,15 @@ const Trips = () => {
                 <div>
                   <label className="block text-[10px] font-bold text-gray-500 mb-1">Driver Assignment</label>
                   <div className="flex bg-gray-50 p-1 rounded-md border border-gray-200">
-                    <button 
+                    <button
                       onClick={() => setDraftFilters({...draftFilters, driverAssigned: ''})}
                       className={`flex-1 py-1 text-[11px] font-bold rounded ${draftFilters.driverAssigned === '' ? 'bg-white shadow-sm text-gray-900 border border-gray-100' : 'text-gray-500'}`}
                     >All</button>
-                    <button 
+                    <button
                       onClick={() => setDraftFilters({...draftFilters, driverAssigned: 'assigned'})}
                       className={`flex-1 py-1 text-[11px] font-bold rounded ${draftFilters.driverAssigned === 'assigned' ? 'bg-white shadow-sm text-gray-900 border border-gray-100' : 'text-gray-500'}`}
                     >Assigned</button>
-                    <button 
+                    <button
                       onClick={() => setDraftFilters({...draftFilters, driverAssigned: 'unassigned'})}
                       className={`flex-1 py-1 text-[11px] font-bold rounded ${draftFilters.driverAssigned === 'unassigned' ? 'bg-white shadow-sm text-gray-900 border border-gray-100' : 'text-gray-500'}`}
                     >Unassigned</button>
@@ -555,10 +605,14 @@ const Trips = () => {
                         </span>
                       </td>
                       <td className="px-4 py-2 text-right">
-                        <ActionMenu 
-                          row={row} 
-                          onViewDetails={() => setSelectedTrip(row)} 
+                        <ActionMenu
+                          row={row}
+                          onViewDetails={() => setSelectedTrip(row)}
                           onPrintInvoice={() => handlePrintInvoice(row)}
+                          onCancel={() => cancelTrip(row)}
+                          onDelete={() => deleteTrip(row)}
+                          onTrack={() => trackTrip(row)}
+                          busy={busyId === rideIdOf(row)}
                         />
                       </td>
                     </tr>
@@ -577,7 +631,7 @@ const Trips = () => {
               </tbody>
             </table>
           </div>
-          
+
           {/* Pagination */}
           <div className="flex flex-col gap-3 border-t border-gray-100 px-4 py-3 text-[13px] text-gray-500 lg:flex-row lg:items-center lg:justify-between bg-gray-50/30">
             <p className="text-center lg:text-left font-medium">
@@ -611,7 +665,7 @@ const Trips = () => {
 
         </div>
       </div>
-      
+
       <TripDetailsModal trip={selectedTrip} onClose={() => setSelectedTrip(null)} />
     </div>
   );

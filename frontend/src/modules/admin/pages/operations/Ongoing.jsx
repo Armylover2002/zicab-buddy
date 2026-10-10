@@ -2,6 +2,7 @@ import React, { useState, useEffect, useRef } from 'react';
 import { Filter, MoreVertical, Search, Loader2, ChevronRight, CheckCircle, MapPin, XCircle, Eye, UserPlus, FileText, User, Truck, CreditCard, X } from 'lucide-react';
 import { adminService } from '../../services/adminService';
 import toast from 'react-hot-toast';
+import { useSearchParams } from 'react-router-dom';
 
 const STATUS_STYLES = {
   ACCEPTED: 'bg-green-100 text-green-700 border border-green-200',
@@ -182,6 +183,10 @@ const ActionMenu = ({ row, onViewDetails, onDelete }) => {
 
 const Ongoing = () => {
   const [selectedRequest, setSelectedRequest] = useState(null);
+  // "Track Trip" on the Trips page links here with ?ride=<id>.
+  const [searchParams] = useSearchParams();
+  const trackRideId = searchParams.get('ride') || '';
+  const trackedOpened = useRef(false);
   const [activeTab, setActiveTab] = useState('All');
   const [limit, setLimit] = useState(10);
   const [search, setSearch] = useState('');
@@ -207,6 +212,15 @@ const Ongoing = () => {
     dateFrom: '',
     dateTo: ''
   });
+
+  useEffect(() => {
+    if (!trackRideId || trackedOpened.current || rows.length === 0) return;
+    const match = rows.find((row) => String(row.id || row._id || '') === trackRideId);
+    if (match) {
+      trackedOpened.current = true;
+      setSelectedRequest(match);
+    }
+  }, [rows, trackRideId]);
 
   const loadRows = React.useCallback(async () => {
     let active = true;

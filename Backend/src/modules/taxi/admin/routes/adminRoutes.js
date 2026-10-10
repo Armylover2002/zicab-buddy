@@ -55,6 +55,8 @@ import {
   deleteRentalPackageType,
   deleteLanguage,
   deleteOngoingRide,
+  cancelRideRequest,
+  deleteRideRequest,
   deleteOwner,
   deleteOwnerBooking,
   deleteOwnerNeededDocument,
@@ -472,6 +474,8 @@ adminRouter.get('/admin/safety/alerts', authenticate(['admin']), listSafetyAlert
 adminRouter.patch('/admin/safety/alerts/:id/resolve', authenticate(['admin']), resolveSafetyAlert);
 adminRouter.get('/admin/ongoing-rides', getOngoingRides);
 adminRouter.get('/admin/ride-requests', getRideRequests);
+adminRouter.post('/admin/ride-requests/:id/cancel', cancelRideRequest);
+adminRouter.delete('/admin/ride-requests/:id', deleteRideRequest);
 adminRouter.get('/admin/enquiries', getWebsiteEnquiries);
 adminRouter.patch('/admin/enquiries/:id', patchWebsiteEnquiry);
 adminRouter.get('/admin/landing-content', getAdminLandingContent);

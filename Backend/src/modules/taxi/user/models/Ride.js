@@ -382,6 +382,32 @@ const rideSchema = new mongoose.Schema(
       lowercase: true,
       trim: true,
     },
+    // Set when an admin cancels the ride from the Trips page.
+    cancelledBy: {
+      type: String,
+      default: '',
+      trim: true,
+    },
+    cancelReason: {
+      type: String,
+      default: '',
+      trim: true,
+    },
+    cancelledAt: {
+      type: Date,
+      default: null,
+    },
+    // Removed from the admin trip lists by an admin. The ride itself is kept,
+    // so earnings, wallet history and reports still add up.
+    adminDeletedAt: {
+      type: Date,
+      default: null,
+    },
+    adminDeletedBy: {
+      type: String,
+      default: '',
+      trim: true,
+    },
     // How the driver actually collected the fare at ride end. Both 'cash' and
     // 'upi' mean the money reached the driver directly (not the platform), so
     // settlement treats them identically (cash-like). This field only records

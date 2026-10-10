@@ -703,6 +703,12 @@ export const getOngoingRides = asyncHandler(async (req, res) =>
 export const getRideRequests = asyncHandler(async (req, res) =>
   ok(res, await adminService.listRideRequests(req.query)),
 );
+export const cancelRideRequest = asyncHandler(async (req, res) =>
+  ok(res, await adminService.cancelRideRequestAsAdmin(req.params.id, req.body || {}, req.auth?.admin)),
+);
+export const deleteRideRequest = asyncHandler(async (req, res) =>
+  ok(res, await adminService.deleteRideRequestAsAdmin(req.params.id, req.auth?.admin)),
+);
 export const getDeliveries = asyncHandler(async (req, res) =>
   ok(res, await adminService.listDeliveries(req.query)),
 );
