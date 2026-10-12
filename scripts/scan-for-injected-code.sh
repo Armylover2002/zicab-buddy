@@ -113,6 +113,35 @@ printf '%s\n' "$LIST" | grep -iE '\.woff2?$' | while IFS= read -r f; do
   esac
 done
 
+# A script whose source is one enormous line. Hand-written code never looks
+# like that; the 10 Oct payload (Backend/api.js, 29 KB on a single line) did.
+printf '%s\n' "$LIST" | grep -E '\.(c|m)?js$' | grep -vE '(^|/)(node_modules|dist|build|vendor)/|\.min\.js$' | while IFS= read -r f; do
+  [ -n "$f" ] || continue
+  if scoped_cat "$f" | awk 'length > 5000 { found = 1; exit } END { exit !found }'; then
+    say "$f: a line over 5000 characters - how obfuscated payloads look"
+  fi
+done
+
+# npm scripts that run something before the app. The same payload made
+# "npm start" run "node api.js && node server.js", so starting the backend
+# executed it first.
+printf '%s\n' "$LIST" | grep -E '(^|/)package\.json$' | while IFS= read -r f; do
+  [ -n "$f" ] || continue
+  if scoped_cat "$f" | grep -E '"(start|dev|prestart|predev|postinstall|preinstall|install)" *:' | grep -qE 'node +[^ "]+\.(c|m)?js *&&'; then
+    say "$f: an npm script runs another file before the app - the payload's launcher"
+  fi
+done
+
+# Anything in a fonts folder that is not a font - the payload once renamed
+# itself fa-solid-300.llf to dodge the name and .woff checks.
+printf '%s\n' "$LIST" | grep -iE '(^|/)fonts/' | while IFS= read -r f; do
+  [ -n "$f" ] || continue
+  case "$f" in
+    *.ttf|*.TTF|*.otf|*.OTF|*.woff|*.WOFF|*.woff2|*.WOFF2|*.eot|*.EOT|*.svg|*.SVG|*.md|*.txt|*/LICENSE*|*/OFL*) ;;
+    *) say "$f: not a font file but sits in a fonts folder - where the payload has hidden" ;;
+  esac
+done
+
 # Editor auto-run, read at the scanned scope.
 for f in .vscode/tasks.json .vscode/launch.json; do
   if scoped_cat "$f" | grep -q 'folderOpen'; then
