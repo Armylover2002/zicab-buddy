@@ -36,6 +36,7 @@ import { buildRentalTrackingSnapshot, updateUserRentalTracking } from '../../ser
 import { listDriverServiceLocations } from '../../driver/services/serviceLocationService.js';
 import { listServiceStores, listSetPrices, listZones } from '../../admin/services/adminService.js';
 import { findZoneByPickup } from '../../services/matchingService.js';
+import { classifyTrip } from '../../services/tripCategoryService.js';
 import { getSurgeAt, getSurgeProfiles, recordSurgeDemand, surgeForVehicle } from '../../services/surgeService.js';
 import { verifyAccessToken } from '../../services/tokenService.js';
 import { resolveRouteCached } from '../../services/routeService.js';
@@ -4737,3 +4738,16 @@ export const submitWebsiteBooking = async (req, res) => {
     },
   });
 };
+
+/// What kind of trip a pickup and drop make - city, airport, outstation or
+/// unserviceable - and so which module's vehicles the rider is offered. Takes
+/// `pickup` and `drop` as "lat,lng".
+export const getTripCategory = asyncHandler(async (req, res) => {
+  const pickup = parseLatLng(req.query.pickup);
+  const drop = parseLatLng(req.query.drop);
+  if (!pickup || !drop) {
+    res.status(400).json({ success: false, message: 'pickup and drop are required as "lat,lng"' });
+    return;
+  }
+  res.status(200).json({ success: true, data: await classifyTrip({ pickup, drop }) });
+});

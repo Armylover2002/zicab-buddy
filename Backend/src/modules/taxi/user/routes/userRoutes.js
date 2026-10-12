@@ -66,6 +66,7 @@ import {
   buySubscription,
   getRoute,
   getSetPrices,
+  getTripCategory,
   getZones,
 } from '../controllers/userController.js';
 import {
@@ -101,6 +102,8 @@ userRouter.get('/vehicle-map-icons/:vehicleId/image', asyncHandler(getVehicleMap
 userRouter.get('/banners', asyncHandler(getPublicBanners));
 userRouter.get('/legal-content', asyncHandler(getPublicLegalContent));
 userRouter.get('/set-prices', asyncHandler(getSetPrices));
+// City, airport or outstation for a pickup and drop - decides the vehicles offered.
+userRouter.get('/trip-category', getTripCategory);
 // Road routes for the maps. Authenticated and rate limited because every
 // cache miss is a billed Directions call.
 userRouter.get('/route', authenticate(['user', 'driver']), routeRateLimit, asyncHandler(getRoute));

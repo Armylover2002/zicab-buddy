@@ -20,6 +20,7 @@ import { UserWallet } from '../user/models/UserWallet.js';
 import { consumeUserSubscriptionRide, resolveApplicableUserSubscription } from '../user/services/subscriptionService.js';
 import { applyPromoToRideInTransaction } from './promoService.js';
 import { ABSOLUTE_MAX_MULTIPLIER, getSurgeAt, getSurgeProfiles, surgeForVehicle } from './surgeService.js';
+import { classifyTrip } from './tripCategoryService.js';
 import { getTipSettings } from './appSettingsService.js';
 import { getBidRideSettings } from './transportSettingsService.js';
 import { resolveBiddingPolicy } from './biddingPolicyService.js';
@@ -1300,6 +1301,16 @@ export const createRideRecord = async ({
     hex: pickupSurge?.hex || '',
   };
 
+  // City, airport or outstation, worked out here rather than trusted from the
+  // app, so reports and the driver can tell the trips apart.
+  const tripClass = await classifyTrip({ pickup: pickupCoords, drop: dropCoords }).catch(() => null);
+  const tripCategory = {
+    category: tripClass?.category || 'city',
+    airport_id: tripClass?.airport?.id || null,
+    airport_name: tripClass?.airport?.name || '',
+    airport_fee: Number(tripClass?.airport?.total_fee || 0),
+  };
+
   const promoCode = typeof promo_code === 'string' ? promo_code.trim() : '';
   const normalizedScheduledAt = normalizeScheduledAt(scheduledAt);
   const applicableSubscription = primaryVehicleTypeId
@@ -1412,6 +1423,7 @@ export const createRideRecord = async ({
       transport_type: normalizedTransportType,
       pricingSnapshot,
       surge: rideSurge,
+      trip_category: tripCategory,
       parcel: normalizeParcelPayload(parcel),
       intercity: normalizeIntercityPayload(intercity),
       scheduledAt: normalizedScheduledAt,
@@ -1475,6 +1487,7 @@ export const createRideRecord = async ({
             transport_type: normalizedTransportType,
             pricingSnapshot,
             surge: rideSurge,
+            trip_category: tripCategory,
             parcel: normalizeParcelPayload(parcel),
             intercity: normalizeIntercityPayload(intercity),
             scheduledAt: normalizedScheduledAt,

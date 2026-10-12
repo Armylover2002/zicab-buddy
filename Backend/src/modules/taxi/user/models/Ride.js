@@ -554,6 +554,29 @@ const rideSchema = new mongoose.Schema(
       default: 'taxi',
       trim: true,
     },
+    // City, airport or outstation, from the pickup and drop at booking. The
+    // airport fee is included in the fare when the app added it.
+    trip_category: {
+      category: {
+        type: String,
+        default: 'city',
+        trim: true,
+      },
+      airport_id: {
+        type: mongoose.Schema.Types.ObjectId,
+        ref: 'TaxiAirport',
+        default: null,
+      },
+      airport_name: {
+        type: String,
+        default: '',
+        trim: true,
+      },
+      airport_fee: {
+        type: Number,
+        default: 0,
+      },
+    },
     // Surge the fare was quoted under; the fare already includes it.
     surge: {
       multiplier: {
