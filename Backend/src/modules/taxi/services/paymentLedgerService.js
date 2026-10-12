@@ -4,6 +4,9 @@ import { UserWallet } from '../user/models/UserWallet.js';
 import { User } from '../user/models/User.js';
 import { DriverSubscription } from '../driver/models/DriverSubscription.js';
 import { WalletTransaction } from '../driver/models/WalletTransaction.js';
+// Registered here because rows populate driverId, whether or not the rest of
+// the app has loaded the Driver model yet.
+import '../driver/models/Driver.js';
 
 /**
  * Every payment the platform takes, in one list for the admin Payments page.
