@@ -16,7 +16,9 @@ const STATUS_STYLES = {
 const PAYMENT_STYLES = {
   CASH: 'bg-gray-100 text-gray-800 border border-gray-200',
   CARD: 'bg-gray-100 text-gray-800 border border-gray-200',
-  WALLET: 'bg-gray-100 text-gray-800 border border-gray-200',
+  WALLET: 'bg-indigo-50 text-indigo-700 border border-indigo-200',
+  ONLINE: 'bg-emerald-50 text-emerald-700 border border-emerald-200',
+  SUBSCRIPTION: 'bg-sky-50 text-sky-700 border border-sky-200',
 };
 
 const TAB_SET = ['All', 'Completed', 'Cancelled', 'Upcoming', 'On Trip'];
@@ -47,6 +49,9 @@ const normalizeRow = (row = {}) => ({
   transportType: row.transportType || row.transport_type || row.service_type || row.module || '--',
   tripStatus: String(row.tripStatus || row.trip_status || row.status || '').toUpperCase(),
   paymentOption: String(row.paymentOption || row.payment_option || row.payment_method || 'CASH').toUpperCase(),
+  // How it was actually paid, e.g. "Paid online via Razorpay (booked as cash)".
+  paymentDetail: row.paymentDetail || '',
+  paymentReference: row.paymentReference || '',
 });
 
 const TripDetailsModal = ({ trip, onClose }) => {
@@ -85,6 +90,8 @@ const TripDetailsModal = ({ trip, onClose }) => {
             <div>
               <p className="text-[11px] uppercase tracking-wider font-bold text-gray-400 mb-1">Payment Option</p>
               <p className="text-[13px] font-bold text-gray-900 capitalize">{String(trip.paymentOption).toLowerCase()}</p>
+              {trip.paymentDetail ? <p className="text-[11px] text-gray-500 mt-0.5">{trip.paymentDetail}</p> : null}
+              {trip.paymentReference ? <p className="text-[10px] text-gray-400 font-mono break-all">Ref. {trip.paymentReference}</p> : null}
             </div>
             <div className="col-span-2 pt-2 border-t border-gray-50">
               <p className="text-[11px] uppercase tracking-wider font-bold text-gray-400 mb-2">Trip Status</p>
@@ -142,7 +149,7 @@ const handlePrintInvoice = (trip) => {
           <tr><th>Customer</th><td>${trip.userName}</td></tr>
           <tr><th>Driver</th><td>${trip.driverName}</td></tr>
           <tr><th>Transport Type</th><td style="text-transform: capitalize;">${String(trip.transportType).toLowerCase()}</td></tr>
-          <tr><th>Payment Method</th><td style="text-transform: capitalize;">${String(trip.paymentOption).toLowerCase()}</td></tr>
+          <tr><th>Payment Method</th><td style="text-transform: capitalize;">${String(trip.paymentOption).toLowerCase()}${trip.paymentDetail ? ` - ${trip.paymentDetail}` : ''}${trip.paymentReference ? ` (Ref. ${trip.paymentReference})` : ''}</td></tr>
           <tr><th>Trip Status</th><td style="text-transform: capitalize;">${String(trip.tripStatus).toLowerCase()}</td></tr>
         </table>
         <div class="footer">
@@ -514,6 +521,7 @@ const Trips = () => {
                     <option value="cash">Cash</option>
                     <option value="online">Online</option>
                     <option value="wallet">Wallet</option>
+                    <option value="subscription">Subscription</option>
                   </select>
                 </div>
 
@@ -603,6 +611,9 @@ const Trips = () => {
                         <span className={`inline-flex items-center px-2 py-0.5 text-[10px] font-bold rounded capitalize tracking-wide ${PAYMENT_STYLES[row.paymentOption] || 'bg-gray-100 text-gray-600 border border-gray-200'}`}>
                           {row.paymentOption ? row.paymentOption.toLowerCase() : 'Cash'}
                         </span>
+                        {row.paymentDetail && row.paymentOption === 'ONLINE' ? (
+                          <p className="text-[9px] text-gray-400 mt-0.5 whitespace-nowrap">{row.paymentDetail.replace('Paid online via ', 'via ')}</p>
+                        ) : null}
                       </td>
                       <td className="px-4 py-2 text-right">
                         <ActionMenu

@@ -8,6 +8,7 @@ import {
   Globe,
   Home,
   IndianRupee,
+  Receipt,
   Layers,
   MapPin,
   MessageCircle,
@@ -47,6 +48,7 @@ export const ADMIN_SIDEBAR_SECTIONS = [
       },
       { icon: Home, label: 'Dashboard', path: '/admin/dashboard', permission: 'dashboard.view' },
       { icon: IndianRupee, label: 'Admin Earnings', path: '/admin/earnings', permission: 'earnings.view' },
+      { icon: Receipt, label: 'Payments', path: '/admin/payments', permission: 'earnings.view' },
       { icon: MessageCircle, label: 'Chat', path: '/admin/chat', permission: 'chat.view' },
       {
         icon: TrendingUp,

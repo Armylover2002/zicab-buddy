@@ -176,6 +176,8 @@ import {
   patchWebsiteEnquiry,
   saveAdminLandingContent,
   getRideRequests,
+  getPayments,
+  getPaymentInvoice,
   rejectUserDeletionRequest,
   rejectDriverDeletionRequest,
   rejectBusDriverSignup,
@@ -474,6 +476,9 @@ adminRouter.get('/admin/safety/alerts', authenticate(['admin']), listSafetyAlert
 adminRouter.patch('/admin/safety/alerts/:id/resolve', authenticate(['admin']), resolveSafetyAlert);
 adminRouter.get('/admin/ongoing-rides', getOngoingRides);
 adminRouter.get('/admin/ride-requests', getRideRequests);
+// One ledger of every payment, and an invoice PDF for each.
+adminRouter.get('/admin/payments', getPayments);
+adminRouter.get('/admin/payments/:kind/:id/invoice', getPaymentInvoice);
 adminRouter.post('/admin/ride-requests/:id/cancel', cancelRideRequest);
 adminRouter.delete('/admin/ride-requests/:id', deleteRideRequest);
 adminRouter.get('/admin/enquiries', getWebsiteEnquiries);

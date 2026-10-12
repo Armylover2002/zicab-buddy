@@ -128,6 +128,7 @@ export const AdminLayout = lazy(() => import('../modules/admin/components/AdminL
 export const AdminLogin = lazy(() => import('../modules/admin/pages/auth/AdminLogin'));
 export const AdminDashboard = lazy(() => import('../modules/admin/pages/dashboard/MainDashboard'));
 export const AdminEarnings = lazy(() => import('../modules/admin/pages/dashboard/AdminEarnings'));
+export const AdminPayments = lazy(() => import('../modules/admin/pages/payments/Payments'));
 export const AdminChat = lazy(() => import('../modules/admin/pages/operations/Chat'));
 export const AdminTrips = lazy(() => import('../modules/admin/pages/operations/Trips'));
 export const AdminDeliveries = lazy(() => import('../modules/admin/pages/operations/Deliveries'));

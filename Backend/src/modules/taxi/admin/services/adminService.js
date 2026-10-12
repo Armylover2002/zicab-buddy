@@ -33,6 +33,7 @@ import { PoolingRoute } from '../models/PoolingRoute.js';
 import { RentalVehicleType } from '../models/RentalVehicleType.js';
 import { RentalQuoteRequest } from '../models/RentalQuoteRequest.js';
 import { SetPrice } from '../models/SetPrice.js';
+import { describeRidePayment } from '../../services/paymentLedgerService.js';
 import { ServiceLocation } from '../models/ServiceLocation.js';
 import { ServiceCenterStaff } from '../models/ServiceCenterStaff.js';
 import { ServiceStore } from '../models/ServiceStore.js';
@@ -6251,6 +6252,20 @@ const formatRidePointLabel = (point, fallback = 'Unknown') => {
   return fallback;
 };
 
+/// How a trip was actually paid, for the Trips page: the method as a badge
+/// key (CASH / ONLINE / WALLET / SUBSCRIPTION) plus a line of detail. The
+/// ride row used to print CASH for every ride, and the others the booking
+/// method, so a cash booking paid online still read "cash".
+const tripPaymentFields = (ride) => {
+  const paid = describeRidePayment(ride);
+  return {
+    paymentOption: paid.method.toUpperCase(),
+    paymentDetail: paid.detail,
+    paymentReference: paid.reference,
+    paymentStatus: paid.status,
+  };
+};
+
 const toAdminRideRow = (ride) => {
   const requestCode = `REQ_${String(ride._id).slice(-12).toUpperCase()}`;
   const status = String(ride.status || '').toLowerCase();
@@ -6277,7 +6292,7 @@ const toAdminRideRow = (ride) => {
     tripStatus,
     rideStatus: ride.status,
     liveStatus: ride.liveStatus,
-    paymentOption: 'CASH',
+    ...tripPaymentFields(ride),
     fare: Number(ride.fare || 0),
     // Prefer the human address the customer actually gave. Falling straight to
     // coordinates showed "12.9716, 77.5946" for website bookings, which carry a
@@ -6336,7 +6351,7 @@ const toAdminDeliveryRow = (ride) => {
     tripStatus,
     rideStatus: ride.status,
     liveStatus: ride.liveStatus,
-    paymentOption: String(ride.paymentMethod || 'cash').toUpperCase(),
+    ...tripPaymentFields(ride),
     fare: Number(ride.fare || 0),
     pickupLabel: ride.pickupAddress || formatRidePointLabel(ride.pickupLocation, 'Pickup'),
     dropLabel: ride.dropAddress || formatRidePointLabel(ride.dropLocation, 'Drop'),
@@ -6382,7 +6397,7 @@ const toAdminIntercityTripRow = (ride) => {
     tripStatus,
     rideStatus: ride.status,
     liveStatus: ride.liveStatus,
-    paymentOption: String(ride.paymentMethod || 'cash').toUpperCase(),
+    ...tripPaymentFields(ride),
     fare: Number(ride.fare || 0),
     pickupLabel: ride.pickupAddress || formatRidePointLabel(ride.pickupLocation, 'Pickup'),
     dropLabel: ride.dropAddress || formatRidePointLabel(ride.dropLocation, 'Drop'),

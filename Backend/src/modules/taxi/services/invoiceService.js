@@ -4,6 +4,7 @@ import { Ride } from '../user/models/Ride.js';
 import { AdminBusinessSetting } from '../admin/models/AdminBusinessSetting.js';
 import { getLandingContent } from '../admin/services/landingContentService.js';
 import { sendEmail } from './mailService.js';
+import { describeRidePayment, invoiceNumber } from './paymentLedgerService.js';
 
 /**
  * Trip invoice PDF, emailed to the rider when a ride completes.
@@ -63,6 +64,29 @@ const formatDate = (date) =>
     timeZone: 'Asia/Kolkata',
   });
 
+/** The business's own details and currency, from the admin panel. */
+const loadCompany = async () => {
+  const [settingsDoc, landing] = await Promise.all([
+    AdminBusinessSetting.findOne({ scope: 'default' }).select('general customization').lean(),
+    getLandingContent().catch(() => null),
+  ]);
+  const general = settingsDoc?.general || {};
+  const customization = settingsDoc?.customization || {};
+  const contact = landing?.contact || {};
+  const rawSymbol = String(customization.currency_symbol || '₹').trim() || '₹';
+  return {
+    symbol: FONTS.unicode ? rawSymbol : 'Rs. ',
+    company: {
+      name: String(general.app_name || 'ZI CAB').trim(),
+      tagline: String(contact.tagline || 'Reliable rides, simple journeys').trim(),
+      address: String(contact.address || '').trim(),
+      phone: String(contact.whatsappDisplay || general.contact_phone_1 || '').trim(),
+      email: String(contact.email || '').trim(),
+      city: String(contact.city || 'Bengaluru').trim(),
+    },
+  };
+};
+
 /** Everything the invoice prints, resolved from the ride and the admin panel. */
 export const buildInvoiceModel = async ({ rideId }) => {
   const ride = await Ride.findById(rideId)
@@ -108,6 +132,12 @@ export const buildInvoiceModel = async ({ rideId }) => {
       drop: String(ride.dropAddress || '-').trim(),
       paymentMethod: String(ride.paymentMethod || 'cash').trim(),
     },
+    // How it was actually paid - a cash booking can be paid online at the end.
+    payment: (() => {
+      const paid = describeRidePayment(ride);
+      return { detail: paid.detail, reference: paid.reference };
+    })(),
+    invoiceNumber: invoiceNumber('ride', ride._id),
     fare: {
       symbol: currencySymbol,
       tripFare: fare,
@@ -155,6 +185,13 @@ export const renderInvoicePdf = (model) =>
       .fontSize(10)
       .fillColor(MUTED)
       .text(model.invoiceDate, left, PAGE_MARGIN, { width, align: 'right' });
+    if (model.invoiceNumber) {
+      doc
+        .font(FONTS.bold)
+        .fontSize(9)
+        .fillColor(INK)
+        .text(`Invoice No. ${model.invoiceNumber}`, left, PAGE_MARGIN + 14, { width, align: 'right' });
+    }
 
     let y = PAGE_MARGIN + 34;
     doc.moveTo(left, y).lineTo(right, y).lineWidth(2).strokeColor(INK).stroke();
@@ -271,7 +308,15 @@ export const renderInvoicePdf = (model) =>
         align: 'right',
       });
 
-    y += 74;
+    y += 58;
+    if (model.payment?.detail) {
+      doc
+        .font(FONTS.regular)
+        .fontSize(9.5)
+        .fillColor(MUTED)
+        .text(`Payment: ${model.payment.detail}${model.payment.reference ? `  ·  Ref. ${model.payment.reference}` : ''}`, left, y, { width });
+    }
+    y += 16;
 
     // --- footer -------------------------------------------------------------
     doc
@@ -369,4 +414,96 @@ export const sendRideInvoiceEmail = async ({ rideId }) => {
     console.error('[invoice] failed to send ride invoice:', error.message);
     return { sent: false, reason: 'error', message: error.message };
   }
+};
+
+/**
+ * Receipt for a payment that is not a ride - a driver's subscription pass or a
+ * wallet top-up - in the same style as the trip invoice. [payment] is a row
+ * from paymentLedgerService.
+ */
+export const renderPaymentReceiptPdf = (payment, { company, symbol }) =>
+  new Promise((resolve, reject) => {
+    const doc = new PDFDocument({ size: 'A4', margin: PAGE_MARGIN });
+    const chunks = [];
+    doc.on('data', (chunk) => chunks.push(chunk));
+    doc.on('end', () => resolve(Buffer.concat(chunks)));
+    doc.on('error', reject);
+
+    const left = PAGE_MARGIN;
+    const right = doc.page.width - PAGE_MARGIN;
+    const width = right - left;
+
+    doc.font(FONTS.bold).fontSize(20).fillColor(INK).text('PAYMENT RECEIPT', left, PAGE_MARGIN, { characterSpacing: 1 });
+    doc.font(FONTS.regular).fontSize(10).fillColor(MUTED).text(formatDate(payment.date), left, PAGE_MARGIN, { width, align: 'right' });
+    doc.font(FONTS.bold).fontSize(9).fillColor(INK).text(`Receipt No. ${payment.invoice_number}`, left, PAGE_MARGIN + 14, { width, align: 'right' });
+
+    let y = PAGE_MARGIN + 34;
+    doc.moveTo(left, y).lineTo(right, y).lineWidth(2).strokeColor(INK).stroke();
+
+    y += 18;
+    doc.font(FONTS.bold).fontSize(13).fillColor(INK).text(company.name, left, y);
+    doc.font(FONTS.regular).fontSize(9.5).fillColor(ACCENT).text(company.tagline, left, y + 17);
+    y += 42;
+    const colWidth = (width - 24) / 2;
+    if (company.address) drawLabelledColumn(doc, left, y, colWidth, 'Office Address', company.address);
+    if (company.phone) drawLabelledColumn(doc, left + colWidth + 24, y, colWidth, 'Phone', company.phone);
+    y += 52;
+
+    const sectionHeading = (text) => {
+      doc.font(FONTS.bold).fontSize(8.5).fillColor(MUTED).text(text.toUpperCase(), left, y, { characterSpacing: 1.2 });
+      y += 14;
+      doc.moveTo(left, y).lineTo(right, y).lineWidth(0.75).strokeColor(RULE).stroke();
+      y += 14;
+    };
+
+    sectionHeading('Received From');
+    drawLabelledColumn(doc, left, y, colWidth, payment.payer.role === 'driver' ? 'Driver' : 'Rider', payment.payer.name);
+    drawLabelledColumn(doc, left + colWidth + 24, y, colWidth, 'Phone', payment.payer.phone || '-');
+    y += 46;
+
+    sectionHeading('Payment');
+    const amountX = right - 130;
+    doc.font(FONTS.bold).fontSize(8).fillColor(MUTED).text('DESCRIPTION', left, y).text('AMOUNT', amountX, y, { width: 130, align: 'right' });
+    y += 16;
+    doc.moveTo(left, y).lineTo(right, y).lineWidth(0.75).strokeColor(RULE).stroke();
+    y += 12;
+    doc
+      .font(FONTS.regular)
+      .fontSize(10.5)
+      .fillColor(INK)
+      .text(`${payment.kind_label} - ${payment.description}`, left, y, { width: amountX - left - 12 })
+      .text(money(payment.amount, symbol), amountX, y, { width: 130, align: 'right' });
+    y += 30;
+
+    doc.rect(left, y, width, 46).fillColor(INK).fill();
+    doc.font(FONTS.bold).fontSize(9).fillColor('#FFFFFF').text('AMOUNT PAID', left + 18, y + 17, { characterSpacing: 1.2 });
+    doc.font(FONTS.bold).fontSize(16).fillColor('#FFFFFF').text(money(payment.amount, symbol), left, y + 13, { width: width - 18, align: 'right' });
+    y += 62;
+
+    doc
+      .font(FONTS.regular)
+      .fontSize(9.5)
+      .fillColor(MUTED)
+      .text(`Payment: ${payment.detail}${payment.reference ? `  ·  Ref. ${payment.reference}` : ''}`, left, y, { width });
+    y += 30;
+    doc.font(FONTS.bold).fontSize(10.5).fillColor(INK).text(`Thank you for choosing ${company.name}.`, left, y, { width, align: 'center' });
+
+    const footerY = doc.page.height - PAGE_MARGIN - 28;
+    doc.moveTo(left, footerY).lineTo(right, footerY).lineWidth(0.75).strokeColor(RULE).stroke();
+    doc.font(FONTS.bold).fontSize(9).fillColor(INK).text(company.name, left, footerY + 10);
+    doc.font(FONTS.regular).fontSize(9).fillColor(MUTED).text(company.city, left, footerY + 10, { width, align: 'right' });
+    doc.end();
+  });
+
+/// Invoice PDF for any row of the payments ledger: the trip invoice for a ride,
+/// a receipt for everything else.
+export const buildPaymentInvoicePdf = async (payment) => {
+  if (payment.kind === 'ride') {
+    const { buffer, filename } = await buildRideInvoicePdf({ rideId: payment.record_id });
+    return { buffer, filename: filename.replace('.pdf', `_${payment.invoice_number}.pdf`) };
+  }
+  const company = await loadCompany();
+  const buffer = await renderPaymentReceiptPdf(payment, company);
+  const slug = company.company.name.replace(/[^A-Za-z0-9]+/g, '_').replace(/^_|_$/g, '') || 'Receipt';
+  return { buffer, filename: `${slug}_Receipt_${payment.invoice_number}.pdf` };
 };

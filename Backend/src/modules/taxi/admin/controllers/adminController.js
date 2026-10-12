@@ -1,5 +1,7 @@
 import { asyncHandler } from "../../../../utils/asyncHandler.js";
 import * as adminService from "../services/adminService.js";
+import { getPayment, listPayments } from '../../services/paymentLedgerService.js';
+import { buildPaymentInvoicePdf } from '../../services/invoiceService.js';
 import { hasAdminPermission } from "../services/adminAccessService.js";
 import * as landingContentService from "../services/landingContentService.js";
 import * as websiteEnquiryService from "../services/websiteEnquiryService.js";
@@ -1852,3 +1854,22 @@ export const updateAutomaticSurge = asyncHandler(async (req, res) =>
 export const resetVehicleAutomaticSurge = asyncHandler(async (req, res) =>
   ok(res, await adminService.resetVehicleAutomaticSurge(req.params.vehicleTypeId, req.auth?.admin)),
 );
+
+/// Every payment - ride fares, driver passes, wallet top-ups - for the
+/// admin Payments page. Filters: kind, method, from, to, q, page, limit.
+export const getPayments = asyncHandler(async (req, res) =>
+  ok(res, await listPayments(req.query || {})),
+);
+
+/// The invoice (rides) or receipt (everything else) for one payment, as a PDF.
+export const getPaymentInvoice = asyncHandler(async (req, res) => {
+  const payment = await getPayment(req.params.kind, req.params.id);
+  if (!payment) {
+    res.status(404).json({ success: false, message: 'Payment not found' });
+    return;
+  }
+  const { buffer, filename } = await buildPaymentInvoicePdf(payment);
+  res.setHeader('Content-Type', 'application/pdf');
+  res.setHeader('Content-Disposition', `attachment; filename="${filename}"`);
+  res.send(buffer);
+});
