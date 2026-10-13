@@ -178,6 +178,7 @@ import {
   saveAdminLandingContent,
   getRideRequests,
   getPayments,
+  getPaymentSubscribers,
   getPaymentInvoice,
   rejectUserDeletionRequest,
   rejectDriverDeletionRequest,
@@ -480,6 +481,7 @@ adminRouter.get('/admin/ongoing-rides', getOngoingRides);
 adminRouter.get('/admin/ride-requests', getRideRequests);
 // One ledger of every payment, and an invoice PDF for each.
 adminRouter.get('/admin/payments', getPayments);
+adminRouter.get('/admin/payments/subscribers', getPaymentSubscribers);
 adminRouter.get('/admin/payments/:kind/:id/invoice', getPaymentInvoice);
 adminRouter.post('/admin/ride-requests/:id/cancel', cancelRideRequest);
 adminRouter.delete('/admin/ride-requests/:id', deleteRideRequest);

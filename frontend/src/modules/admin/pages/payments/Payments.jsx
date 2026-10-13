@@ -2,6 +2,7 @@ import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { ChevronLeft, ChevronRight, Download, FileText, Loader2, RefreshCw, Search } from 'lucide-react';
 import toast from 'react-hot-toast';
 import api from '../../../../shared/api/axiosInstance';
+import SubscriberReport from './SubscriberReport';
 
 /**
  * Every payment the platform takes, in one place: ride fares (cash, online,
@@ -69,6 +70,8 @@ const Payments = () => {
     q: '',
   });
   const [page, setPage] = useState(1);
+  // 'all': the payments ledger. 'subscribers': the daily-pass report.
+  const [tab, setTab] = useState('all');
   const [data, setData] = useState({ results: [], totals: {}, total: 0 });
   const [loading, setLoading] = useState(true);
   const [downloading, setDownloading] = useState('');
@@ -195,7 +198,7 @@ const Payments = () => {
             Every ride fare, driver subscription and wallet top-up, with an invoice for each.
           </p>
         </div>
-        <div className="flex items-center gap-2">
+        <div className={`flex items-center gap-2 ${tab === 'all' ? '' : 'hidden'}`}>
           <button
             onClick={load}
             className="flex items-center gap-1 text-[11px] font-semibold text-gray-600 hover:text-gray-900 px-2 py-1.5"
@@ -212,6 +215,27 @@ const Payments = () => {
         </div>
       </div>
 
+      <div className="flex gap-1 mb-3 border-b border-gray-200">
+        {[
+          { key: 'all', label: 'All payments' },
+          { key: 'subscribers', label: 'Subscribers' },
+        ].map((item) => (
+          <button
+            key={item.key}
+            onClick={() => setTab(item.key)}
+            className={`px-3 py-1.5 text-xs font-bold border-b-2 -mb-px transition-colors ${
+              tab === item.key ? 'border-indigo-600 text-indigo-700' : 'border-transparent text-gray-500 hover:text-gray-800'
+            }`}
+          >
+            {item.label}
+          </button>
+        ))}
+      </div>
+
+      {tab === 'subscribers' ? (
+        <SubscriberReport />
+      ) : (
+        <>
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 mb-4">
         {cards.map((card) => (
           <div key={card.label} className="bg-white border border-gray-100 rounded-lg p-3 shadow-sm">
@@ -349,6 +373,8 @@ const Payments = () => {
           </button>
         </div>
       </div>
+        </>
+      )}
     </div>
   );
 };

@@ -1,6 +1,7 @@
 import { asyncHandler } from "../../../../utils/asyncHandler.js";
 import * as adminService from "../services/adminService.js";
 import { getPayment, listPayments } from '../../services/paymentLedgerService.js';
+import { getSubscriberReport } from '../../services/subscriberReportService.js';
 import { buildPaymentInvoicePdf } from '../../services/invoiceService.js';
 import { hasAdminPermission } from "../services/adminAccessService.js";
 import * as landingContentService from "../services/landingContentService.js";
@@ -1863,6 +1864,17 @@ export const resetVehicleAutomaticSurge = asyncHandler(async (req, res) =>
 /// admin Payments page. Filters: kind, method, from, to, q, page, limit.
 export const getPayments = asyncHandler(async (req, res) =>
   ok(res, await listPayments(req.query || {})),
+);
+
+/// Daily-pass subscribers for one pass day (6 AM to 6 AM IST): totals, the
+/// 6 PM closing, vehicle-, service- and plan-wise splits, and the list.
+/// Filters: date (YYYY-MM-DD), vehicle_class, vehicle_type_id.
+export const getPaymentSubscribers = asyncHandler(async (req, res) =>
+  ok(res, await getSubscriberReport({
+    date: req.query?.date,
+    vehicleClass: req.query?.vehicle_class,
+    vehicleTypeId: req.query?.vehicle_type_id,
+  })),
 );
 
 /// The invoice (rides) or receipt (everything else) for one payment, as a PDF.
