@@ -7,6 +7,7 @@ import { WalletTransaction } from '../driver/models/WalletTransaction.js';
 // Registered here because rows populate driverId, whether or not the rest of
 // the app has loaded the Driver model yet.
 import '../driver/models/Driver.js';
+import { Vehicle } from '../admin/models/Vehicle.js';
 
 /**
  * Every payment the platform takes, in one list for the admin Payments page.
@@ -103,12 +104,17 @@ const person = (doc, role) => ({
   role,
 });
 
+/// Every vehicle type a driver is enrolled in - a pass or a top-up belongs to
+/// all of them.
+const driverVehicleTypeIds = (driver) =>
+  [...new Set([driver?.vehicleTypeId, ...(driver?.vehicleTypeIds || [])].filter(Boolean).map(String))];
+
 const rideRows = async ({ from, to, onlyId }) => {
   const rides = await Ride.find(onlyId ? { _id: onlyId } : {
     status: 'completed',
     $or: [{ completedAt: { $gte: from, $lte: to } }, { completedAt: null, updatedAt: { $gte: from, $lte: to } }],
   })
-    .select('fare status paymentMethod driverPaymentCollection subscriptionUsage completedAt updatedAt createdAt userId driverId pickupAddress dropAddress serviceType trip_category')
+    .select('fare status paymentMethod driverPaymentCollection subscriptionUsage completedAt updatedAt createdAt userId driverId pickupAddress dropAddress serviceType trip_category vehicleTypeId')
     .populate('userId', 'name phone')
     .populate('driverId', 'name phone')
     .lean();
@@ -129,13 +135,14 @@ const rideRows = async ({ from, to, onlyId }) => {
       payer: person(ride.userId, 'rider'),
       payee: person(ride.driverId, 'driver'),
       description: `${ride.pickupAddress || 'Pickup'} -> ${ride.dropAddress || 'Drop'}`,
+      vehicle_type_ids: ride.vehicleTypeId ? [String(ride.vehicleTypeId)] : [],
     };
   });
 };
 
 const subscriptionRows = async ({ from, to, onlyId }) => {
   const rows = await DriverSubscription.find(onlyId ? { _id: onlyId, paidAt: { $ne: null } } : { paidAt: { $gte: from, $lte: to } })
-    .populate('driverId', 'name phone')
+    .populate('driverId', 'name phone vehicleTypeId vehicleTypeIds')
     .lean();
 
   return rows.map((row) => {
@@ -155,13 +162,14 @@ const subscriptionRows = async ({ from, to, onlyId }) => {
       payer: person(row.driverId, 'driver'),
       payee: { id: '', name: 'ZI CAB', phone: '', role: 'platform' },
       description: row.planName || row.name || 'Subscription pass',
+      vehicle_type_ids: driverVehicleTypeIds(row.driverId),
     };
   });
 };
 
 const driverTopUpRows = async ({ from, to, onlyId }) => {
   const rows = await WalletTransaction.find(onlyId ? { _id: onlyId, type: 'top_up' } : { type: 'top_up', createdAt: { $gte: from, $lte: to } })
-    .populate('driverId', 'name phone')
+    .populate('driverId', 'name phone vehicleTypeId vehicleTypeIds')
     .lean();
 
   return rows.map((row) => {
@@ -180,6 +188,7 @@ const driverTopUpRows = async ({ from, to, onlyId }) => {
       payer: person(row.driverId, 'driver'),
       payee: { id: '', name: 'ZI CAB', phone: '', role: 'platform' },
       description: row.description || 'Driver wallet top-up',
+      vehicle_type_ids: driverVehicleTypeIds(row.driverId),
     };
   });
 };
@@ -219,6 +228,7 @@ const riderTopUpRows = async ({ from, to, onlyId }) => {
       payer: person(userById.get(String(userId)), 'rider'),
       payee: { id: '', name: 'ZI CAB', phone: '', role: 'platform' },
       description: tx.title || 'Wallet refill',
+      vehicle_type_ids: [],
     };
   });
 };
@@ -236,7 +246,7 @@ const SOURCES = {
  * @param from,to  ISO dates; defaults to the last 30 days
  * @param q        matches names, phones, references and ids
  */
-export const listPayments = async ({ kind = '', method = '', from, to, q = '', page = 1, limit = 25 } = {}) => {
+export const listPayments = async ({ kind = '', method = '', vehicle_type_id: vehicleTypeId = '', from, to, q = '', page = 1, limit = 25 } = {}) => {
   const end = toDate(to, new Date());
   // A bare date means the whole of that day.
   if (to && String(to).length <= 10) end.setHours(23, 59, 59, 999);
@@ -247,6 +257,10 @@ export const listPayments = async ({ kind = '', method = '', from, to, q = '', p
   let rows = batches.flat();
 
   if (method) rows = rows.filter((row) => row.method === method);
+  // Payments for one vehicle type: its rides, and the passes and top-ups of
+  // the drivers who drive it. Rider wallet top-ups belong to no vehicle.
+  const vehicleFilter = String(vehicleTypeId || '').trim();
+  if (vehicleFilter) rows = rows.filter((row) => (row.vehicle_type_ids || []).includes(vehicleFilter));
   const needle = String(q || '').trim().toLowerCase();
   if (needle) {
     rows = rows.filter((row) =>
@@ -269,10 +283,20 @@ export const listPayments = async ({ kind = '', method = '', from, to, q = '', p
 
   const pageNumber = Math.max(1, Number(page) || 1);
   const pageSize = Math.min(200, Math.max(1, Number(limit) || 25));
+  const pageRows = rows.slice((pageNumber - 1) * pageSize, pageNumber * pageSize);
+
+  // Vehicle names for this page only.
+  const vehicleIds = [...new Set(pageRows.flatMap((row) => row.vehicle_type_ids || []))]
+    .filter((id) => mongoose.Types.ObjectId.isValid(id));
+  const vehicleNames = new Map(
+    (await Vehicle.find({ _id: { $in: vehicleIds } }).select('name').lean())
+      .map((vehicle) => [String(vehicle._id), vehicle.name]),
+  );
 
   return {
-    results: rows.slice((pageNumber - 1) * pageSize, pageNumber * pageSize).map((row) => ({
+    results: pageRows.map((row) => ({
       ...row,
+      vehicle_names: (row.vehicle_type_ids || []).map((id) => vehicleNames.get(id)).filter(Boolean),
       kind_label: KIND_LABELS[row.kind],
       method_label: METHOD_LABELS[row.method] || titleCase(row.method),
       invoice_number: invoiceNumber(row.kind, row.record_id),

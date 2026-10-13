@@ -63,6 +63,7 @@ const Payments = () => {
   const [filters, setFilters] = useState({
     kind: '',
     method: '',
+    vehicle_type_id: '',
     from: isoDay(new Date(today.getTime() - 30 * 864e5)),
     to: isoDay(today),
     q: '',
@@ -72,6 +73,23 @@ const Payments = () => {
   const [loading, setLoading] = useState(true);
   const [downloading, setDownloading] = useState('');
   const [exporting, setExporting] = useState(false);
+  const [vehicles, setVehicles] = useState([]);
+
+  // For the Vehicle filter: active vehicle types first.
+  useEffect(() => {
+    api.get('/admin/types/vehicle-types/list')
+      .then((res) => {
+        const body = res?.data ?? res;
+        const list = body?.data?.results || body?.results || body?.data || body || [];
+        setVehicles(
+          (Array.isArray(list) ? list : [])
+            .filter((v) => v && (v._id || v.id))
+            .map((v) => ({ id: String(v._id || v.id), name: v.name || 'Vehicle', active: v.active !== false && v.status !== 'inactive' }))
+            .sort((a, b) => Number(b.active) - Number(a.active) || a.name.localeCompare(b.name)),
+        );
+      })
+      .catch((err) => console.error('Load vehicle types failed:', err));
+  }, []);
 
   const load = useCallback(async () => {
     try {
@@ -135,12 +153,12 @@ const Payments = () => {
         rows.push(...(body.results || []));
         if (rows.length >= (body.total || 0) || !(body.results || []).length) break;
       }
-      const header = ['Date', 'Invoice No.', 'Type', 'Paid by', 'Phone', 'For', 'Method', 'Detail', 'Reference', 'Status', 'Amount'];
+      const header = ['Date', 'Invoice No.', 'Type', 'Paid by', 'Phone', 'For', 'Vehicle', 'Method', 'Detail', 'Reference', 'Status', 'Amount'];
       const cell = (value) => `"${String(value ?? '').replace(/"/g, '""')}"`;
       const lines = [
         header.map(cell).join(','),
         ...rows.map((r) =>
-          [when(r.date), r.invoice_number, r.kind_label, r.payer.name, r.payer.phone, r.description, r.method_label, r.detail, r.reference, r.status, r.amount]
+          [when(r.date), r.invoice_number, r.kind_label, r.payer.name, r.payer.phone, r.description, (r.vehicle_names || []).join(' / '), r.method_label, r.detail, r.reference, r.status, r.amount]
             .map(cell)
             .join(','),
         ),
@@ -225,6 +243,15 @@ const Payments = () => {
             {METHODS.map((m) => <option key={m.value} value={m.value}>{m.label}</option>)}
           </select>
         </label>
+        <label className="text-[10px] font-semibold text-gray-500" title="Rides of this vehicle, and passes and top-ups of drivers who drive it">
+          Vehicle
+          <select className={`${inputClass} block mt-1`} value={filters.vehicle_type_id} onChange={(e) => setFilter('vehicle_type_id', e.target.value)}>
+            <option value="">All vehicles</option>
+            {vehicles.map((v) => (
+              <option key={v.id} value={v.id}>{v.name}{v.active ? '' : ' (inactive)'}</option>
+            ))}
+          </select>
+        </label>
         <label className="text-[10px] font-semibold text-gray-500 flex-1 min-w-[180px]">
           Search
           <span className="relative block mt-1">
@@ -277,6 +304,9 @@ const Payments = () => {
                     <p className="text-gray-700 truncate" title={row.description}>{row.description}</p>
                     {row.kind === 'ride' && row.payee?.name ? (
                       <p className="text-[10px] text-gray-400">Driver: {row.payee.name}</p>
+                    ) : null}
+                    {row.vehicle_names?.length ? (
+                      <p className="text-[10px] text-gray-500">Vehicle: {row.vehicle_names.join(', ')}</p>
                     ) : null}
                   </td>
                   <td className="px-3 py-2">
