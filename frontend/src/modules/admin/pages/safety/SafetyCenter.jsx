@@ -490,6 +490,21 @@ const SafetyCenter = () => {
                                     <p className="text-[13px] font-bold text-gray-900">{selectedAlert.rider.name || 'Rider'}</p>
                                     <PhoneLink phone={selectedAlert.rider.phone} />
                                     <PartyRow label="Email" value={selectedAlert.rider.email} />
+                                    {selectedAlert.rider.emergencyContacts?.length ? (
+                                       <div className="pt-1.5 mt-1 border-t border-gray-100">
+                                          <p className="text-[9px] font-bold uppercase tracking-wide text-gray-500 mb-1">Emergency contacts</p>
+                                          {selectedAlert.rider.emergencyContacts.map((contact, index) => (
+                                             <div key={`${contact.phone}-${index}`} className="flex items-center justify-between gap-2">
+                                                <span className="text-[11px] font-semibold text-gray-800 truncate">
+                                                   {contact.name || 'Contact'}{contact.relation ? <span className="text-gray-400 font-normal"> · {contact.relation}</span> : null}
+                                                </span>
+                                                <PhoneLink phone={contact.phone} />
+                                             </div>
+                                          ))}
+                                       </div>
+                                    ) : (
+                                       <p className="text-[10px] text-gray-400 pt-1">No emergency contacts saved</p>
+                                    )}
                                  </>
                               ) : (
                                  <p className="text-[11px] text-gray-400">No rider on this alert</p>

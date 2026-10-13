@@ -88,7 +88,21 @@ const serializeSafetyAlert = (alert = {}) => {
   };
 };
 
-const RIDER_FIELDS = 'name phone email profileImage';
+const RIDER_FIELDS = 'name phone email profileImage emergencyContacts';
+const MAX_EMERGENCY_CONTACTS = 5;
+
+/// Up to five contacts with a usable phone number, from whatever the app
+/// sent. Anything else is dropped rather than refused: an SOS must never fail
+/// on a badly typed contact.
+export const sanitizeEmergencyContacts = (list) =>
+  (Array.isArray(list) ? list : [])
+    .map((contact) => ({
+      name: cleanString(contact?.name).slice(0, 60),
+      phone: cleanString(contact?.phone).replace(/[^\d+]/g, '').slice(0, 15),
+      relation: cleanString(contact?.relation || 'Other').slice(0, 30) || 'Other',
+    }))
+    .filter((contact) => contact.phone.replace(/\D/g, '').length >= 6)
+    .slice(0, MAX_EMERGENCY_CONTACTS);
 const DRIVER_FIELDS = 'name phone profileImage rating vehicleType vehicleNumber vehicleMake vehicleModel vehicleColor location';
 // A ride still under way, for an SOS sent without a ride id (the driver
 // app's profile screen sends none).
@@ -123,6 +137,7 @@ const buildSnapshot = ({ sourceApp, rider, driver, ride, delivery }) => ({
         phone: cleanString(rider.phone),
         email: cleanString(rider.email),
         profileImage: cleanString(rider.profileImage),
+        emergencyContacts: sanitizeEmergencyContacts(rider.emergencyContacts),
       }
     : null,
   driver: driver
@@ -220,14 +235,22 @@ const createAlertRecord = async ({
   notes,
   tripCode,
   vehicleLabel,
+  emergencyContacts,
 }) => {
   // No ride id sent: the person's ride in progress, if there is one, so the
   // admin still sees who the other party is.
   const effectiveRideId = rideId || (deliveryId ? '' : await findLiveRideId({ sourceApp, authId }));
   const { ride, delivery } = await readRideContext({ rideId: effectiveRideId, deliveryId });
-  const actorUser = sourceApp === 'user'
+  let actorUser = sourceApp === 'user'
     ? await User.findById(authId).select(RIDER_FIELDS).lean()
     : ride?.userId || delivery?.userId || null;
+  // Contacts sent with the SOS are the freshest; they also refresh the copy on
+  // the profile, which is what a driver-pressed SOS will show.
+  const sentContacts = sourceApp === 'user' ? sanitizeEmergencyContacts(emergencyContacts) : [];
+  if (sentContacts.length && actorUser) {
+    actorUser = { ...actorUser, emergencyContacts: sentContacts };
+    await User.updateOne({ _id: authId }, { $set: { emergencyContacts: sentContacts } }).catch(() => null);
+  }
   const actorDriver = sourceApp === 'driver'
     ? await Driver.findById(authId).select(DRIVER_FIELDS).lean()
     : ride?.driverId || delivery?.driverId || null;
@@ -297,6 +320,7 @@ export const triggerUserSosAlert = asyncHandler(async (req, res) => {
     notes: req.body?.notes,
     tripCode: req.body?.tripCode,
     vehicleLabel: req.body?.vehicleLabel,
+    emergencyContacts: req.body?.emergencyContacts,
   });
 
   const payload = serializeSafetyAlert(alert);
@@ -304,6 +328,19 @@ export const triggerUserSosAlert = asyncHandler(async (req, res) => {
   emitToAdmins('safety:alert:new', payload);
 
   res.json({ success: true, data: payload });
+});
+
+/// The rider's emergency contacts, so a new phone can restore them.
+export const getMyEmergencyContacts = asyncHandler(async (req, res) => {
+  const user = await User.findById(req.auth.sub).select('emergencyContacts').lean();
+  res.json({ success: true, data: { contacts: sanitizeEmergencyContacts(user?.emergencyContacts) } });
+});
+
+/// Replaces the rider's emergency contacts with the app's list.
+export const saveMyEmergencyContacts = asyncHandler(async (req, res) => {
+  const contacts = sanitizeEmergencyContacts(req.body?.contacts);
+  await User.updateOne({ _id: req.auth.sub }, { $set: { emergencyContacts: contacts } });
+  res.json({ success: true, data: { contacts } });
 });
 
 export const triggerDriverSosAlert = asyncHandler(async (req, res) => {

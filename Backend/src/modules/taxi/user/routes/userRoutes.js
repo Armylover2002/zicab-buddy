@@ -79,7 +79,7 @@ import {
 } from '../controllers/poolingController.js';
 import { getAppBootstrap, getAppModules, getGeneralSettingsCategory, getGoodsTypes, getPublicRentalVehicleCatalog, getPublicVehicleTypeCatalog, getPublicLandingContent, getPublicLegalContent, submitWebsiteEnquiry } from '../../admin/controllers/adminController.js';
 import { getPublicCancellationReasons } from '../../admin/controllers/cancellationReasonController.js';
-import { triggerUserSosAlert } from '../../safety/controllers/safetyController.js';
+import { getMyEmergencyContacts, saveMyEmergencyContacts, triggerUserSosAlert } from '../../safety/controllers/safetyController.js';
 
 export const userRouter = Router();
 
@@ -142,6 +142,10 @@ userRouter.get('/notifications', authenticate(['user']), asyncHandler(getUserNot
 userRouter.delete('/notifications/:id', authenticate(['user']), asyncHandler(deleteUserNotification));
 userRouter.delete('/notifications', authenticate(['user']), asyncHandler(clearAllUserNotifications));
 userRouter.post('/sos', authenticate(['user']), asyncHandler(triggerUserSosAlert));
+userRouter.get('/emergency-contacts', authenticate(['user']), getMyEmergencyContacts);
+userRouter.put('/emergency-contacts', authenticate(['user']), saveMyEmergencyContacts);
+// The app's API client sends PATCH.
+userRouter.patch('/emergency-contacts', authenticate(['user']), saveMyEmergencyContacts);
 userRouter.get('/wallet', authenticate(['user']), asyncHandler(getUserWallet));
 userRouter.post('/wallet/topup', authenticate(['user']), asyncHandler(topupUserWallet));
 userRouter.post('/wallet/transfer', authenticate(['user']), asyncHandler(transferUserWallet));
