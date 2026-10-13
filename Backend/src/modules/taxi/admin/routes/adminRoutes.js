@@ -81,6 +81,7 @@ import {
   getAdminBusBookingCalendar,
   getAdminBusBookings,
   getAdminEarnings,
+  getAdminEarningDetails,
   getAirports,
   getPriceHikes,
   getAutomaticSurge,
@@ -469,6 +470,7 @@ adminRouter.get('/admin/referral/dashboard', getReferralDashboard);
 adminRouter.get('/admin/dashboard/data', getDashboardData);
 
 adminRouter.get('/admin/dashboard/admin-earnings', getAdminEarnings);
+adminRouter.get('/admin/dashboard/admin-earnings/details', getAdminEarningDetails);
 adminRouter.get('/admin/dashboard/overall-earnings', getOverallEarnings);
 adminRouter.get('/admin/dashboard/today-earnings', getTodayEarnings);
 adminRouter.get('/admin/dashboard/cancel-chart', getCancelChart);

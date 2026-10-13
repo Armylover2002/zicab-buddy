@@ -8644,6 +8644,66 @@ const groupAdminEarnings = (rows, keyGetter, labelGetter) => {
     .sort((a, b) => b.adminCommission - a.adminCommission);
 };
 
+const dateMatch = (startDate, endDate) => {
+  const range = {};
+  if (startDate) range.$gte = startDate;
+  if (endDate) range.$lte = endDate;
+  return range;
+};
+
+/// Money figures that do not come from rides: driver subscription passes sold,
+/// refunds credited to riders, withdrawals drivers are waiting on, and what
+/// sits in driver wallets. Zone and vehicle filters do not apply to these.
+const getAdminEarningExtras = async ({ startDate, endDate }) => {
+  const range = dateMatch(startDate, endDate);
+  const [subscriptions, refunds, pending, wallets] = await Promise.all([
+    DriverSubscription.aggregate([
+      { $match: { paidAt: { $ne: null, ...range } } },
+      { $group: { _id: null, amount: { $sum: '$amount' }, count: { $sum: 1 } } },
+    ]),
+    UserWallet.aggregate([
+      { $unwind: '$transactions' },
+      {
+        $match: {
+          'transactions.kind': 'credit',
+          'transactions.title': /refund/i,
+          ...(Object.keys(range).length ? { 'transactions.createdAt': range } : {}),
+        },
+      },
+      { $group: { _id: null, amount: { $sum: '$transactions.amount' }, count: { $sum: 1 } } },
+    ]),
+    // Every withdrawal by status. A pending request is owed now, whenever it
+    // was made, so these are not limited to the date range.
+    WithdrawalRequest.aggregate([
+      { $group: { _id: '$status', amount: { $sum: '$amount' }, count: { $sum: 1 } } },
+    ]),
+    Driver.aggregate([
+      { $match: { 'wallet.balance': { $gt: 0 } } },
+      { $group: { _id: null, amount: { $sum: '$wallet.balance' } } },
+    ]),
+  ]);
+  const money = (value) => Number(Number(value || 0).toFixed(2));
+  const byStatus = (...statuses) => pending
+    .filter((row) => statuses.includes(String(row._id || '').toLowerCase()))
+    .reduce((acc, row) => ({ amount: acc.amount + Number(row.amount || 0), count: acc.count + row.count }), { amount: 0, count: 0 });
+  const waiting = byStatus('pending', 'processing', 'approved');
+  const paid = byStatus('completed', 'paid', 'success');
+  const failed = byStatus('rejected', 'failed', 'declined', 'cancelled');
+  return {
+    withdrawalsPaid: money(paid.amount),
+    withdrawalsPaidCount: paid.count,
+    withdrawalsFailed: money(failed.amount),
+    withdrawalsFailedCount: failed.count,
+    subscriptionRevenue: money(subscriptions[0]?.amount),
+    subscriptionCount: subscriptions[0]?.count || 0,
+    refunds: money(refunds[0]?.amount),
+    refundCount: refunds[0]?.count || 0,
+    pendingSettlements: money(waiting.amount),
+    pendingSettlementCount: waiting.count,
+    driverWalletHeld: money(wallets[0]?.amount),
+  };
+};
+
 export const getAdminEarnings = async (query = {}) => {
   const {
     from,
@@ -8710,7 +8770,11 @@ export const getAdminEarnings = async (query = {}) => {
         driverName: driver.name || 'Unassigned Driver',
         driverPhone: driver.phone || '',
         riderType: ride.serviceType || 'ride',
-        paymentMethod: ride.paymentMethod || 'cash',
+        // How it was actually paid - a cash booking paid online at the end
+        // counts as online, which the booking method alone got wrong.
+        paymentMethod: describeRidePayment(ride).method,
+        paymentDetail: describeRidePayment(ride).detail,
+        driverId: driver?._id ? String(driver._id) : '',
         zoneId: zoneDoc?._id ? String(zoneDoc._id) : '',
         zoneName: zoneDoc?.name || 'Unmapped Zone',
         vehicleId: vehicleDoc?._id ? String(vehicleDoc._id) : '',
@@ -8773,10 +8837,27 @@ export const getAdminEarnings = async (query = {}) => {
     Object.entries(totals).map(([key, value]) => [key, typeof value === 'number' ? Number(value.toFixed(2)) : value]),
   );
 
+  // The cards that were estimates in the browser (5% / 1.5% / 8% of other
+  // figures) now come from the records themselves.
+  const extras = await getAdminEarningExtras({ startDate, endDate });
+  const netPlatformRevenue = roundedTotals.adminCommission + extras.subscriptionRevenue - extras.refunds;
+
   return {
     summary: {
       ...roundedTotals,
       averageCommission: rows.length ? Number((totals.adminCommission / rows.length).toFixed(2)) : 0,
+      subscriptionRevenue: extras.subscriptionRevenue,
+      subscriptionCount: extras.subscriptionCount,
+      refunds: extras.refunds,
+      refundCount: extras.refundCount,
+      netPlatformRevenue: Number(netPlatformRevenue.toFixed(2)),
+      pendingSettlements: extras.pendingSettlements,
+      pendingSettlementCount: extras.pendingSettlementCount,
+      driverWalletHeld: extras.driverWalletHeld,
+      withdrawalsPaid: extras.withdrawalsPaid,
+      withdrawalsPaidCount: extras.withdrawalsPaidCount,
+      withdrawalsFailed: extras.withdrawalsFailed,
+      withdrawalsFailedCount: extras.withdrawalsFailedCount,
     },
     breakdowns: {
       zones: groupAdminEarnings(rows, (row) => row.zoneId, (row) => row.zoneName),
@@ -12332,4 +12413,157 @@ export const resetVehicleAutomaticSurge = async (vehicleTypeId, currentAdmin = n
   }
   await resetVehicleSurgeSettings(vehicleTypeId);
   return automaticSurgeState();
+};
+
+/// The records behind one card on the Admin Earnings page, with the same
+/// filters. `metric` is the card: commission, gross-fare, driver-earnings,
+/// net-revenue, average-commission, cash-commission, online-commission,
+/// refunds or completed.
+export const getAdminEarningDetails = async (query = {}) => {
+  const metric = String(query.metric || 'commission');
+  const earnings = await getAdminEarnings({ ...query, page: 1, limit: 100000 });
+  const rides = earnings.results || [];
+  const summary = earnings.summary || {};
+  const money = (value) => Number(Number(value || 0).toFixed(2));
+
+  const rideColumns = [
+    { key: 'completedAt', label: 'Completed', type: 'date' },
+    { key: 'requestId', label: 'Request' },
+    { key: 'userName', label: 'Rider' },
+    { key: 'driverName', label: 'Driver' },
+    { key: 'vehicleName', label: 'Vehicle' },
+    { key: 'paymentDetail', label: 'Paid' },
+    { key: 'grossFare', label: 'Fare', type: 'money' },
+    { key: 'adminCommission', label: 'Commission', type: 'money' },
+    { key: 'driverEarnings', label: 'Driver earning', type: 'money' },
+  ];
+  const rideResult = (title, description, rows, totalLabel, totalValue) => ({
+    metric,
+    title,
+    description,
+    columns: rideColumns,
+    rows,
+    total: rows.length,
+    totals: [{ label: totalLabel, value: totalValue, type: 'money' }, { label: 'Trips', value: rows.length }],
+  });
+
+  switch (metric) {
+    case 'gross-fare':
+      return rideResult('Gross ride fare', 'Every completed trip and its fare.', rides, 'Gross fare', money(summary.grossFare));
+    case 'completed':
+      return rideResult('Completed transactions', 'Every completed trip in the period.', rides, 'Gross fare', money(summary.grossFare));
+    case 'average-commission':
+      return {
+        ...rideResult('Average commission', 'Total commission divided by completed trips.', rides, 'Total commission', money(summary.adminCommission)),
+        totals: [
+          { label: 'Average per trip', value: money(summary.averageCommission), type: 'money' },
+          { label: 'Total commission', value: money(summary.adminCommission), type: 'money' },
+          { label: 'Trips', value: rides.length },
+        ],
+      };
+    case 'cash-commission': {
+      const rows = rides.filter((row) => row.paymentMethod === 'cash');
+      return rideResult('Cash commission', 'Commission on trips the rider paid in cash.', rows, 'Commission', money(summary.byCash));
+    }
+    case 'online-commission': {
+      const rows = rides.filter((row) => row.paymentMethod === 'online');
+      return rideResult('Online commission', 'Commission on trips paid online (including cash bookings paid online at the end).', rows, 'Commission', money(summary.byOnline));
+    }
+    case 'driver-earnings': {
+      const byDriver = new Map();
+      for (const row of rides) {
+        const key = row.driverId || row.driverName;
+        const entry = byDriver.get(key) || { driverName: row.driverName, driverPhone: row.driverPhone, trips: 0, grossFare: 0, adminCommission: 0, driverEarnings: 0 };
+        entry.trips += 1;
+        entry.grossFare += row.grossFare;
+        entry.adminCommission += row.adminCommission;
+        entry.driverEarnings += row.driverEarnings;
+        byDriver.set(key, entry);
+      }
+      const rows = [...byDriver.values()]
+        .map((entry) => ({ ...entry, grossFare: money(entry.grossFare), adminCommission: money(entry.adminCommission), driverEarnings: money(entry.driverEarnings) }))
+        .sort((a, b) => b.driverEarnings - a.driverEarnings);
+      return {
+        metric,
+        title: 'Driver earnings',
+        description: 'What each driver earned from completed trips, after commission.',
+        columns: [
+          { key: 'driverName', label: 'Driver' },
+          { key: 'driverPhone', label: 'Phone' },
+          { key: 'trips', label: 'Trips' },
+          { key: 'grossFare', label: 'Fares', type: 'money' },
+          { key: 'adminCommission', label: 'Commission', type: 'money' },
+          { key: 'driverEarnings', label: 'Earned', type: 'money' },
+        ],
+        rows,
+        total: rows.length,
+        totals: [{ label: 'Driver earnings', value: money(summary.driverEarnings), type: 'money' }, { label: 'Drivers', value: rows.length }],
+      };
+    }
+    case 'net-revenue': {
+      const range = dateMatch(earnings.filters?.from ? new Date(earnings.filters.from) : null, earnings.filters?.to ? new Date(`${earnings.filters.to}T23:59:59.999`) : null);
+      const passes = await DriverSubscription.find({ paidAt: { $ne: null, ...range } })
+        .sort({ paidAt: -1 })
+        .populate('driverId', 'name phone')
+        .lean();
+      const rows = [
+        { item: 'Commission on completed trips', detail: `${rides.length} trips`, amount: money(summary.adminCommission) },
+        { item: 'Driver subscription passes', detail: `${summary.subscriptionCount || 0} passes sold`, amount: money(summary.subscriptionRevenue) },
+        { item: 'Refunds to riders', detail: `${summary.refundCount || 0} refunds`, amount: -money(summary.refunds) },
+        ...passes.map((pass) => ({
+          item: `Pass: ${pass.planName || 'Subscription'}`,
+          detail: `${pass.driverId?.name || 'Driver'} · ${pass.paymentMethod || 'wallet'} · ${new Date(pass.paidAt).toLocaleString('en-IN')}`,
+          amount: money(pass.amount),
+          indent: true,
+        })),
+      ];
+      return {
+        metric,
+        title: 'Net platform revenue',
+        description: 'Commission plus driver subscription passes, less refunds. Zone and vehicle filters apply to commission only.',
+        columns: [
+          { key: 'item', label: 'Item' },
+          { key: 'detail', label: 'Detail' },
+          { key: 'amount', label: 'Amount', type: 'money' },
+        ],
+        rows,
+        total: rows.length,
+        totals: [{ label: 'Net platform revenue', value: money(summary.netPlatformRevenue), type: 'money' }],
+      };
+    }
+    case 'refunds': {
+      const range = dateMatch(earnings.filters?.from ? new Date(earnings.filters.from) : null, earnings.filters?.to ? new Date(`${earnings.filters.to}T23:59:59.999`) : null);
+      const wallets = await UserWallet.aggregate([
+        { $unwind: '$transactions' },
+        { $match: { 'transactions.kind': 'credit', 'transactions.title': /refund/i, ...(Object.keys(range).length ? { 'transactions.createdAt': range } : {}) } },
+        { $sort: { 'transactions.createdAt': -1 } },
+        { $lookup: { from: 'taxiusers', localField: 'userId', foreignField: '_id', as: 'user' } },
+      ]);
+      const rows = wallets.map((w) => ({
+        createdAt: w.transactions.createdAt,
+        rider: w.user?.[0]?.name || 'Rider',
+        phone: w.user?.[0]?.phone || '',
+        title: w.transactions.title,
+        amount: money(w.transactions.amount),
+      }));
+      return {
+        metric,
+        title: 'Refunds',
+        description: 'Refunds credited to riders\' wallets.',
+        columns: [
+          { key: 'createdAt', label: 'Date', type: 'date' },
+          { key: 'rider', label: 'Rider' },
+          { key: 'phone', label: 'Phone' },
+          { key: 'title', label: 'Reason' },
+          { key: 'amount', label: 'Amount', type: 'money' },
+        ],
+        rows,
+        total: rows.length,
+        totals: [{ label: 'Refunded', value: money(summary.refunds), type: 'money' }, { label: 'Refunds', value: rows.length }],
+      };
+    }
+    case 'commission':
+    default:
+      return rideResult('Total commission', 'Commission ZI CAB earned on each completed trip.', rides, 'Commission', money(summary.adminCommission));
+  }
 };

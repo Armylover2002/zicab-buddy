@@ -25,6 +25,7 @@ import {
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { adminService } from '../../services/adminService';
+import { useNavigate } from 'react-router-dom';
 
 const RIDER_TYPES = [
   { value: '', label: 'All Rider Types' },
@@ -250,12 +251,26 @@ const AdminEarnings = () => {
   const averageCommission = Number(summary.averageCommission || 0);
   const totalTrips = Number(summary.totalTrips || 0);
   const cashCommission = Number(summary.byCash || 0);
-  const onlineCommission = Math.max(0, totalCommission - cashCommission);
-  
-  // Safe derived metrics for premium accounting layout
-  const netPlatformRevenue = Math.max(0, totalCommission * 0.95); // Assuming 5% standard tax/disputes reduction
-  const refundAmount = Math.max(0, grossFare * 0.015); // Derived estimate
-  const pendingSettlements = Math.max(0, driverEarnings * 0.08); // Derived 8% pending window
+  const onlineCommission = Number(summary.byOnline || 0);
+
+  // From the records, not estimates. These three used to be invented in the
+  // browser (95% of commission, 1.5% of fares, 8% of driver earnings).
+  const netPlatformRevenue = Number(summary.netPlatformRevenue || 0);
+  const refundAmount = Number(summary.refunds || 0);
+  const pendingSettlements = Number(summary.pendingSettlements || 0);
+  const subscriptionRevenue = Number(summary.subscriptionRevenue || 0);
+  const driverWalletHeld = Number(summary.driverWalletHeld || 0);
+  const withdrawalsPaid = Number(summary.withdrawalsPaid || 0);
+  const withdrawalsFailed = Number(summary.withdrawalsFailed || 0);
+
+  // Each card opens the records behind it, with the filters in force.
+  const navigate = useNavigate();
+  const openDetail = (metric) => {
+    const params = new URLSearchParams(
+      Object.entries(filters).filter(([, value]) => String(value || '').trim() !== ''),
+    );
+    navigate(`/admin/earnings/${metric}${params.toString() ? `?${params}` : ''}`);
+  };
 
   // CSV Export utility
   const handleExport = () => {
@@ -388,23 +403,35 @@ const AdminEarnings = () => {
       {/* 2. KPI CARDS SECTION (10 Metrics) */}
       <div className="grid grid-cols-2 gap-4 sm:grid-cols-3 lg:grid-cols-5 mb-8">
         {[
-          { label: "Total Commission", value: currency(totalCommission), icon: IndianRupee, cardBg: "!bg-orange-500" },
-          { label: "Gross Ride Fare", value: currency(grossFare), icon: Wallet, cardBg: "!bg-blue-500" },
-          { label: "Driver Earnings", value: currency(driverEarnings), icon: TrendingUp, cardBg: "!bg-emerald-500" },
-          { label: "Net Platform Revenue", value: currency(netPlatformRevenue), icon: ShieldCheck, cardBg: "!bg-violet-500" },
-          { label: "Average Commission", value: currency(averageCommission), icon: BarChart3, cardBg: "!bg-fuchsia-500" },
-          { label: "Cash Commission", value: currency(cashCommission), icon: UserRound, cardBg: "!bg-slate-600" },
-          { label: "Online Commission", value: currency(onlineCommission), icon: Car, cardBg: "!bg-teal-500" },
-          { label: "Pending Settlements", value: currency(pendingSettlements), icon: Clock, cardBg: "!bg-orange-500" },
-          { label: "Refund Amount", value: currency(refundAmount), icon: AlertTriangle, cardBg: "!bg-rose-500" },
-          { label: "Completed Transactions", value: totalTrips, icon: CheckCircle, cardBg: "!bg-sky-500" }
+          { label: "Total Commission", value: currency(totalCommission), icon: IndianRupee, cardBg: "!bg-orange-500", metric: 'commission' },
+          { label: "Gross Ride Fare", value: currency(grossFare), icon: Wallet, cardBg: "!bg-blue-500", metric: 'gross-fare' },
+          { label: "Driver Earnings", value: currency(driverEarnings), icon: TrendingUp, cardBg: "!bg-emerald-500", metric: 'driver-earnings' },
+          { label: "Net Platform Revenue", value: currency(netPlatformRevenue), icon: ShieldCheck, cardBg: "!bg-violet-500", metric: 'net-revenue' },
+          { label: "Average Commission", value: currency(averageCommission), icon: BarChart3, cardBg: "!bg-fuchsia-500", metric: 'average-commission' },
+          { label: "Cash Commission", value: currency(cashCommission), icon: UserRound, cardBg: "!bg-slate-600", metric: 'cash-commission' },
+          { label: "Online Commission", value: currency(onlineCommission), icon: Car, cardBg: "!bg-teal-500", metric: 'online-commission' },
+          // The withdrawal requests page already lists these, with approve and pay actions.
+          { label: "Pending Settlements", value: currency(pendingSettlements), icon: Clock, cardBg: "!bg-orange-500", to: '/admin/drivers/wallet/withdrawals' },
+          { label: "Refund Amount", value: currency(refundAmount), icon: AlertTriangle, cardBg: "!bg-rose-500", metric: 'refunds' },
+          { label: "Completed Transactions", value: totalTrips, icon: CheckCircle, cardBg: "!bg-sky-500", metric: 'completed' }
         ].map((kpi, idx) => (
           <motion.div
             key={idx}
             initial={{ opacity: 0, y: 15 }}
             animate={{ opacity: 1, y: 0 }}
             transition={{ duration: 0.3, delay: idx * 0.03 }}
-            className={`admin-card !p-4 border-none !text-white hover:scale-[1.02] transition-all shadow-lg rounded-lg ${kpi.cardBg}`}
+            role="button"
+            tabIndex={0}
+            title={`Open ${kpi.label}`}
+            onClick={() => (kpi.to ? navigate(kpi.to) : openDetail(kpi.metric))}
+            onKeyDown={(e) => {
+              if (e.key === 'Enter' || e.key === ' ') {
+                e.preventDefault();
+                if (kpi.to) navigate(kpi.to);
+                else openDetail(kpi.metric);
+              }
+            }}
+            className={`admin-card !p-4 border-none !text-white hover:scale-[1.02] transition-all shadow-lg rounded-lg cursor-pointer focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-slate-400 ${kpi.cardBg}`}
           >
             <div className="flex items-center justify-between mb-2">
               <span className="card-label text-[10px] font-bold opacity-80 uppercase tracking-wider">{kpi.label}</span>
@@ -604,21 +631,21 @@ const AdminEarnings = () => {
               <span className="text-base font-bold text-[#0B1220] block mt-0.5">{currency(driverEarnings)}</span>
             </div>
             <div>
-              <span className="text-slate-400 block uppercase font-semibold text-[9px] tracking-wider">Paid to Drivers</span>
-              <span className="text-base font-bold text-emerald-600 block mt-0.5">{currency(driverEarnings * 0.92)}</span>
+              <span className="text-slate-400 block uppercase font-semibold text-[9px] tracking-wider">Withdrawals Paid</span>
+              <span className="text-base font-bold text-emerald-600 block mt-0.5">{currency(withdrawalsPaid)}</span>
             </div>
             <div>
-              <span className="text-slate-400 block uppercase font-semibold text-[9px] tracking-wider">Pending Payout</span>
+              <span className="text-slate-400 block uppercase font-semibold text-[9px] tracking-wider">Withdrawals Pending ({Number(summary.pendingSettlementCount || 0)})</span>
               <span className="text-base font-bold text-amber-500 block mt-0.5">{currency(pendingSettlements)}</span>
             </div>
             <div>
-              <span className="text-slate-400 block uppercase font-semibold text-[9px] tracking-wider">Failed Payout</span>
-              <span className="text-base font-bold text-rose-500 block mt-0.5">{currency(0)}</span>
+              <span className="text-slate-400 block uppercase font-semibold text-[9px] tracking-wider">Withdrawals Rejected</span>
+              <span className="text-base font-bold text-rose-500 block mt-0.5">{currency(withdrawalsFailed)}</span>
             </div>
           </div>
           <div className="bg-slate-50 border border-slate-100 rounded-lg p-2.5 flex justify-between items-center text-[10px] text-slate-500 font-semibold">
-            <span>Next Settlement Target Date</span>
-            <span className="text-[#0B1220] font-bold">Friday, 10:00 AM</span>
+            <span>Held in driver wallets</span>
+            <span className="text-[#0B1220] font-bold">{currency(driverWalletHeld)}</span>
           </div>
         </div>
 
@@ -634,21 +661,21 @@ const AdminEarnings = () => {
               <span className="text-base font-bold text-rose-500 block mt-0.5">{currency(refundAmount)}</span>
             </div>
             <div>
-              <span className="text-slate-400 block uppercase font-semibold text-[9px] tracking-wider">Cancelled Ride Refunds</span>
-              <span className="text-base font-bold text-[#0B1220] block mt-0.5">{currency(refundAmount * 0.7)}</span>
+              <span className="text-slate-400 block uppercase font-semibold text-[9px] tracking-wider">Refunds Count</span>
+              <span className="text-base font-bold text-[#0B1220] block mt-0.5">{Number(summary.refundCount || 0)}</span>
             </div>
             <div>
-              <span className="text-slate-400 block uppercase font-semibold text-[9px] tracking-wider">Wallet Adjustments</span>
-              <span className="text-base font-bold text-[#0B1220] block mt-0.5">{currency(refundAmount * 0.2)}</span>
+              <span className="text-slate-400 block uppercase font-semibold text-[9px] tracking-wider">Subscription Income</span>
+              <span className="text-base font-bold text-[#0B1220] block mt-0.5">{currency(subscriptionRevenue)}</span>
             </div>
             <div>
-              <span className="text-slate-400 block uppercase font-semibold text-[9px] tracking-wider">Disputed Audits</span>
-              <span className="text-base font-bold text-amber-500 block mt-0.5">{currency(refundAmount * 0.1)}</span>
+              <span className="text-slate-400 block uppercase font-semibold text-[9px] tracking-wider">Net Platform Revenue</span>
+              <span className="text-base font-bold text-violet-600 block mt-0.5">{currency(netPlatformRevenue)}</span>
             </div>
           </div>
           <div className="bg-slate-50 border border-slate-100 rounded-lg p-2.5 flex justify-between items-center text-[10px] text-slate-500 font-semibold">
-            <span>Manual Adjustments Approved Today</span>
-            <span className="text-[#0B1220] font-bold">₹0.00</span>
+            <span>Commission + passes − refunds</span>
+            <span className="text-[#0B1220] font-bold">{currency(totalCommission)} + {currency(subscriptionRevenue)} − {currency(refundAmount)}</span>
           </div>
         </div>
 

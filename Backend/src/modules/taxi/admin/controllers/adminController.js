@@ -812,6 +812,10 @@ export const getOverallEarnings = asyncHandler(async (_req, res) =>
 export const getAdminEarnings = asyncHandler(async (req, res) =>
   ok(res, await adminService.getAdminEarnings(req.query)),
 );
+/// The rows behind one Admin Earnings card (?metric=...).
+export const getAdminEarningDetails = asyncHandler(async (req, res) =>
+  ok(res, await adminService.getAdminEarningDetails(req.query)),
+);
 export const getTodayEarnings = asyncHandler(async (_req, res) =>
   ok(res, await adminService.getTodayEarnings()),
 );

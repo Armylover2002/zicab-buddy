@@ -46,6 +46,7 @@ import {
   AdminDriverWallet,
   AdminEarnings,
   AdminPayments,
+  AdminEarningsDetail,
   AdminEmployeeCreate,
   AdminEmployeeDetails,
   AdminEmployeeList,
@@ -203,6 +204,7 @@ const adminRoutes = (
       <Route index element={<Navigate to="/admin/dashboard" />} />
       <Route path="dashboard" element={<AdminDashboard />} />
       <Route path="earnings" element={<AdminEarnings />} />
+      <Route path="earnings/:metric" element={<AdminEarningsDetail />} />
       <Route path="payments" element={<AdminPayments />} />
       <Route path="chat" element={<AdminChat />} />
       <Route path="trips" element={<AdminTrips />} />
