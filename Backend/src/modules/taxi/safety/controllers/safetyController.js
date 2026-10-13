@@ -61,6 +61,15 @@ const serializeSafetyAlert = (alert = {}) => {
           }
         : null,
     notes: cleanString(alert?.notes),
+    triggeredBy: cleanString(alert?.snapshot?.triggeredBy) || (alert?.sourceApp === 'driver' ? 'driver' : 'rider'),
+    rider: alert?.snapshot?.rider || (alert?.riderName || alert?.riderPhone
+      ? { name: cleanString(alert?.riderName), phone: cleanString(alert?.riderPhone) }
+      : null),
+    driver: alert?.snapshot?.driver || (alert?.driverName || alert?.driverPhone
+      ? { name: cleanString(alert?.driverName), phone: cleanString(alert?.driverPhone) }
+      : null),
+    ride: alert?.snapshot?.ride || null,
+    driverLocation: alert?.snapshot?.driverLocation || null,
     createdAt: alert?.createdAt || null,
     updatedAt: alert?.updatedAt || null,
     resolvedAt: alert?.resolvedAt || null,
@@ -79,35 +88,101 @@ const serializeSafetyAlert = (alert = {}) => {
   };
 };
 
+const RIDER_FIELDS = 'name phone email profileImage';
+const DRIVER_FIELDS = 'name phone profileImage rating vehicleType vehicleNumber vehicleMake vehicleModel vehicleColor location';
+// A ride still under way, for an SOS sent without a ride id (the driver
+// app's profile screen sends none).
+const LIVE_RIDE_STATUSES = ['accepted', 'ongoing'];
+
+const findLiveRideId = async ({ sourceApp, authId }) => {
+  if (!authId) return '';
+  const owner = sourceApp === 'driver' ? { driverId: authId } : { userId: authId };
+  const ride = await Ride.findOne({ ...owner, status: { $in: LIVE_RIDE_STATUSES } })
+    .sort({ updatedAt: -1 })
+    .select('_id')
+    .lean();
+  return ride ? String(ride._id) : '';
+};
+
+const vehicleLabelOf = (driver) =>
+  [driver?.vehicleNumber, [driver?.vehicleColor, driver?.vehicleMake, driver?.vehicleModel].filter(Boolean).join(' ')]
+    .map(cleanString)
+    .filter(Boolean)
+    .join(' - ');
+
+const pointOf = (coordinates) => {
+  const [lng, lat] = Array.isArray(coordinates) ? coordinates.map(Number) : [];
+  return Number.isFinite(lat) && Number.isFinite(lng) && !(lat === 0 && lng === 0) ? { lat, lng } : null;
+};
+
+const buildSnapshot = ({ sourceApp, rider, driver, ride, delivery }) => ({
+  triggeredBy: sourceApp === 'driver' ? 'driver' : 'rider',
+  rider: rider
+    ? {
+        name: cleanString(rider.name),
+        phone: cleanString(rider.phone),
+        email: cleanString(rider.email),
+        profileImage: cleanString(rider.profileImage),
+      }
+    : null,
+  driver: driver
+    ? {
+        name: cleanString(driver.name),
+        phone: cleanString(driver.phone),
+        profileImage: cleanString(driver.profileImage),
+        rating: Number(driver.rating) || null,
+        vehicleType: cleanString(driver.vehicleType),
+        vehicleNumber: cleanString(driver.vehicleNumber),
+        vehicleMake: cleanString(driver.vehicleMake),
+        vehicleModel: cleanString(driver.vehicleModel),
+        vehicleColor: cleanString(driver.vehicleColor),
+      }
+    : null,
+  ride: ride || delivery
+    ? {
+        status: cleanString(ride?.liveStatus || ride?.status || delivery?.status),
+        serviceType: cleanString(ride?.serviceType) || (delivery ? 'parcel' : 'ride'),
+        fare: Number(ride?.fare ?? delivery?.fare) || null,
+        paymentMethod: cleanString(ride?.paymentMethod || delivery?.paymentMethod),
+        otp: cleanString(ride?.otp),
+        acceptedAt: ride?.acceptedAt || null,
+        startedAt: ride?.startedAt || null,
+      }
+    : null,
+  // Where the driver's phone last reported - the car itself, which may not
+  // be where the SOS was pressed.
+  driverLocation: pointOf(ride?.lastDriverLocation?.coordinates) || pointOf(driver?.location?.coordinates),
+});
+
 const readRideContext = async ({ rideId, deliveryId }) => {
   let ride = null;
   let delivery = null;
 
   if (rideId) {
     ride = await Ride.findById(rideId)
-      .populate('userId', 'name phone')
-      .populate('driverId', 'name phone vehicle')
+      .populate('userId', RIDER_FIELDS)
+      .populate('driverId', DRIVER_FIELDS)
       .lean();
   }
 
   if (deliveryId) {
     delivery = await Delivery.findById(deliveryId)
-      .populate('userId', 'name phone')
-      .populate('driverId', 'name phone vehicle')
+      .populate('userId', RIDER_FIELDS)
+      .populate('driverId', DRIVER_FIELDS)
       .lean();
   }
 
   if (!delivery && ride?.deliveryId) {
     delivery = await Delivery.findById(ride.deliveryId)
-      .populate('userId', 'name phone')
-      .populate('driverId', 'name phone vehicle')
+      .populate('userId', RIDER_FIELDS)
+      .populate('driverId', DRIVER_FIELDS)
       .lean();
   }
 
   if (!ride && delivery?.rideId) {
     ride = await Ride.findById(delivery.rideId)
-      .populate('userId', 'name phone')
-      .populate('driverId', 'name phone vehicle')
+      .populate('userId', RIDER_FIELDS)
+      .populate('driverId', DRIVER_FIELDS)
       .lean();
   }
 
@@ -146,15 +221,22 @@ const createAlertRecord = async ({
   tripCode,
   vehicleLabel,
 }) => {
-  const { ride, delivery } = await readRideContext({ rideId, deliveryId });
+  // No ride id sent: the person's ride in progress, if there is one, so the
+  // admin still sees who the other party is.
+  const effectiveRideId = rideId || (deliveryId ? '' : await findLiveRideId({ sourceApp, authId }));
+  const { ride, delivery } = await readRideContext({ rideId: effectiveRideId, deliveryId });
   const actorUser = sourceApp === 'user'
-    ? await User.findById(authId).select('name phone').lean()
+    ? await User.findById(authId).select(RIDER_FIELDS).lean()
     : ride?.userId || delivery?.userId || null;
   const actorDriver = sourceApp === 'driver'
-    ? await Driver.findById(authId).select('name phone vehicle').lean()
+    ? await Driver.findById(authId).select(DRIVER_FIELDS).lean()
     : ride?.driverId || delivery?.driverId || null;
+  // Where SOS was pressed; a driver's SOS sent without a position falls back
+  // to where their phone last reported, before the ride's pickup.
   const coords =
     normalizeCoordinates(location)
+    || (sourceApp === 'driver' ? normalizeCoordinates(actorDriver?.location) : null)
+    || normalizeCoordinates(ride?.lastDriverLocation)
     || normalizeCoordinates(delivery?.pickupLocation)
     || normalizeCoordinates(ride?.pickupLocation);
 
@@ -169,7 +251,8 @@ const createAlertRecord = async ({
     riderPhone: cleanString(actorUser?.phone),
     driverName: cleanString(actorDriver?.name),
     driverPhone: cleanString(actorDriver?.phone),
-    vehicleLabel: cleanString(vehicleLabel) || cleanString(actorDriver?.vehicle),
+    vehicleLabel: cleanString(vehicleLabel) || vehicleLabelOf(actorDriver),
+    snapshot: buildSnapshot({ sourceApp, rider: actorUser, driver: actorDriver, ride, delivery }),
     tripCode:
       cleanString(tripCode)
       || cleanString(ride?.bookingId)

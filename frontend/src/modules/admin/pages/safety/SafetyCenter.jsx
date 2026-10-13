@@ -39,8 +39,31 @@ const formatDateTime = (value) => {
 
 const getParticipantTitle = (alert) =>
   alert?.sourceApp === 'driver'
-    ? alert?.driverName || 'Driver'
-    : alert?.riderName || 'Passenger';
+    ? alert?.driver?.name || alert?.driverName || 'Driver'
+    : alert?.rider?.name || alert?.riderName || 'Passenger';
+
+const triggeredByLabel = (alert) => (alert?.triggeredBy === 'driver' || alert?.sourceApp === 'driver' ? 'Driver' : 'Rider');
+
+const vehicleText = (driver = {}) =>
+  [driver?.vehicleColor, driver?.vehicleMake, driver?.vehicleModel].filter(Boolean).join(' ');
+
+// A phone number the admin can tap to call.
+const PhoneLink = ({ phone }) =>
+  phone ? (
+    <a href={`tel:${phone}`} className="inline-flex items-center gap-1 text-[12px] font-bold text-indigo-700 hover:underline">
+      <PhoneCall size={11} /> {phone}
+    </a>
+  ) : (
+    <span className="text-[11px] text-gray-400">No phone</span>
+  );
+
+const PartyRow = ({ label, value }) =>
+  value ? (
+    <div className="flex justify-between gap-2 text-[11px]">
+      <span className="text-gray-500">{label}</span>
+      <span className="font-semibold text-gray-900 text-right">{value}</span>
+    </div>
+  ) : null;
 
 const getMapCenter = (alert) =>
   Number.isFinite(Number(alert?.location?.lat)) && Number.isFinite(Number(alert?.location?.lng))
@@ -85,7 +108,7 @@ const IncidentCard = ({ alert, isActive, onClick }) => (
         </div>
       </div>
       <span className="text-[10px] font-bold px-1.5 py-0.5 rounded-md bg-red-100 text-red-700">
-        Prio-1
+        {triggeredByLabel(alert)} SOS
       </span>
     </div>
 
@@ -95,8 +118,14 @@ const IncidentCard = ({ alert, isActive, onClick }) => (
         <span className="font-bold text-gray-800">{alert?.vehicleLabel || 'N/A'}</span>
       </div>
       <div className="bg-gray-50/80 p-1.5 rounded-lg border border-gray-100 overflow-hidden">
-        <span className="block text-[9px] text-gray-500 font-semibold mb-0.5">Passenger</span>
-        <span className="font-bold text-gray-800 truncate block">{alert?.riderName || 'None'}</span>
+        <span className="block text-[9px] text-gray-500 font-semibold mb-0.5">
+          {alert?.sourceApp === 'driver' ? 'Passenger' : 'Driver'}
+        </span>
+        <span className="font-bold text-gray-800 truncate block">
+          {alert?.sourceApp === 'driver'
+            ? alert?.rider?.name || alert?.riderName || 'No ride'
+            : alert?.driver?.name || alert?.driverName || 'No ride'}
+        </span>
       </div>
     </div>
 
@@ -291,9 +320,14 @@ const SafetyCenter = () => {
 
   const mapMarkers = useMemo(() => {
     if (!selectedAlert) return [];
-    return [
-       { id: 'incident', pos: getMapCenter(selectedAlert), type: 'Incident Location', color: '#E11D48', icon: Car },
+    const markers = [
+       { id: 'incident', pos: getMapCenter(selectedAlert), type: 'Where SOS was pressed', color: '#E11D48', icon: Car },
     ];
+    const car = selectedAlert.driverLocation;
+    if (Number.isFinite(Number(car?.lat)) && Number.isFinite(Number(car?.lng))) {
+       markers.push({ id: 'driver', pos: { lat: Number(car.lat), lng: Number(car.lng) }, type: "Driver's car", color: '#2563EB', icon: Car });
+    }
+    return markers;
   }, [selectedAlert]);
 
   const timeline = useMemo(() => {
@@ -440,26 +474,64 @@ const SafetyCenter = () => {
                   {/* Context & Timeline Panel */}
                   <div className="flex flex-col gap-4">
                      
-                     {/* Distress Context */}
+                     {/* Who was involved: rider, driver, ride */}
                      <div className="bg-white rounded-xl border border-gray-200 p-4 shadow-sm">
-                        <div className="text-xs font-bold text-gray-900 mb-3 border-b border-gray-100 pb-2">Distress Context</div>
-                        <div className="grid grid-cols-2 md:grid-cols-3 gap-3">
-                           <div>
-                              <p className="text-[9px] font-semibold text-gray-500 mb-0.5">Driver ID</p>
-                              <p className="text-[11px] font-bold text-gray-900">{selectedAlert?.driverId?.slice(-8) || 'N/A'}</p>
+                        <div className="flex items-center justify-between mb-3 border-b border-gray-100 pb-2">
+                           <div className="text-xs font-bold text-gray-900">People &amp; ride</div>
+                           <span className="text-[10px] font-bold px-2 py-0.5 rounded bg-red-100 text-red-700">
+                              SOS pressed by the {triggeredByLabel(selectedAlert).toLowerCase()}
+                           </span>
+                        </div>
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                           <div className={`rounded-lg border p-3 space-y-1 ${triggeredByLabel(selectedAlert) === 'Rider' ? 'border-red-200 bg-red-50/40' : 'border-gray-100'}`}>
+                              <p className="text-[9px] font-bold uppercase tracking-wide text-gray-500">Rider</p>
+                              {selectedAlert.rider ? (
+                                 <>
+                                    <p className="text-[13px] font-bold text-gray-900">{selectedAlert.rider.name || 'Rider'}</p>
+                                    <PhoneLink phone={selectedAlert.rider.phone} />
+                                    <PartyRow label="Email" value={selectedAlert.rider.email} />
+                                 </>
+                              ) : (
+                                 <p className="text-[11px] text-gray-400">No rider on this alert</p>
+                              )}
                            </div>
-                           <div>
-                              <p className="text-[9px] font-semibold text-gray-500 mb-0.5">User ID</p>
-                              <p className="text-[11px] font-bold text-gray-900">{selectedAlert?.userId?.slice(-8) || 'N/A'}</p>
+                           <div className={`rounded-lg border p-3 space-y-1 ${triggeredByLabel(selectedAlert) === 'Driver' ? 'border-red-200 bg-red-50/40' : 'border-gray-100'}`}>
+                              <p className="text-[9px] font-bold uppercase tracking-wide text-gray-500">Driver</p>
+                              {selectedAlert.driver ? (
+                                 <>
+                                    <p className="text-[13px] font-bold text-gray-900">
+                                       {selectedAlert.driver.name || 'Driver'}
+                                       {selectedAlert.driver.rating ? <span className="ml-1 text-[10px] font-semibold text-amber-600">★ {Number(selectedAlert.driver.rating).toFixed(1)}</span> : null}
+                                    </p>
+                                    <PhoneLink phone={selectedAlert.driver.phone} />
+                                    <PartyRow label="Vehicle no." value={selectedAlert.driver.vehicleNumber} />
+                                    <PartyRow label="Vehicle" value={vehicleText(selectedAlert.driver)} />
+                                    <PartyRow label="Type" value={selectedAlert.driver.vehicleType} />
+                                 </>
+                              ) : (
+                                 <p className="text-[11px] text-gray-400">No driver on this alert</p>
+                              )}
                            </div>
-                           <div>
-                              <p className="text-[9px] font-semibold text-gray-500 mb-0.5">Ride ID</p>
-                              <p className="text-[11px] font-bold text-gray-900">{selectedAlert?.rideId?.slice(-8) || selectedAlert?.tripCode || 'N/A'}</p>
-                           </div>
-                           <div>
-                              <p className="text-[9px] font-semibold text-gray-500 mb-0.5">Contact</p>
-                              <p className="text-[11px] font-bold text-gray-900">{selectedAlert?.emergencyContact || 'Unavailable'}</p>
-                           </div>
+                        </div>
+                        <div className="mt-3 rounded-lg border border-gray-100 p-3 space-y-1">
+                           <p className="text-[9px] font-bold uppercase tracking-wide text-gray-500">Ride</p>
+                           {selectedAlert.ride || selectedAlert.rideId ? (
+                              <>
+                                 <PartyRow label="Ride ID" value={selectedAlert.rideId ? selectedAlert.rideId.slice(-8).toUpperCase() : selectedAlert.tripCode} />
+                                 <PartyRow label="Status" value={selectedAlert.ride?.status} />
+                                 <PartyRow label="Pickup" value={selectedAlert.pickupAddress} />
+                                 <PartyRow label="Drop" value={selectedAlert.dropAddress} />
+                                 <PartyRow label="Fare" value={selectedAlert.ride?.fare ? `₹${selectedAlert.ride.fare}` : ''} />
+                                 <PartyRow label="Payment" value={selectedAlert.ride?.paymentMethod} />
+                                 <PartyRow label="Trip PIN" value={selectedAlert.ride?.otp} />
+                              </>
+                           ) : (
+                              <p className="text-[11px] text-gray-400">Not on a ride when SOS was pressed</p>
+                           )}
+                           {selectedAlert.notes ? <PartyRow label="Note" value={selectedAlert.notes} /> : null}
+                           {selectedAlert.driverLocation ? (
+                              <p className="text-[10px] text-blue-600 font-semibold pt-1">Blue dot on the map = the driver's car. Red = where SOS was pressed.</p>
+                           ) : null}
                         </div>
                      </div>
 

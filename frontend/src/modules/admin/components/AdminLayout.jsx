@@ -1149,9 +1149,33 @@ const AdminLayout = () => {
 
     socketService.connect({ role: 'admin', token });
 
-    socketService.on('new_sos', (data) => {
-      console.log('SOS ALERT RECEIVED:', data);
-      alert(`SOS ALERT: Driver ${data.driver_name} is in trouble!`);
+    // A blocking alert() reading a field the server never sends ("Driver
+    // undefined is in trouble!") - now a toast that stays until dismissed,
+    // naming both people, with a way into the Safety Center.
+    socketService.on('new_sos', (data = {}) => {
+      const byDriver = data.triggeredBy === 'driver' || data.sourceApp === 'driver';
+      const rider = data.rider || {};
+      const driver = data.driver || {};
+      const line = (label, person) =>
+        person?.name || person?.phone ? `${label}: ${person.name || ''}${person.phone ? ` (${person.phone})` : ''}` : '';
+      toast.error(
+        (t) => (
+          <div className="text-[12px] leading-snug">
+            <p className="font-extrabold text-[13px] text-red-700">SOS from the {byDriver ? 'driver' : 'rider'}</p>
+            {line('Rider', rider) ? <p>{line('Rider', rider)}</p> : null}
+            {line('Driver', driver) ? <p>{line('Driver', driver)}{driver.vehicleNumber ? ` - ${driver.vehicleNumber}` : ''}</p> : null}
+            {data.locationLabel || data.pickupAddress ? <p className="text-gray-500">{data.locationLabel || data.pickupAddress}</p> : null}
+            <button
+              type="button"
+              className="mt-1.5 text-[11px] font-bold text-white bg-red-600 rounded px-2 py-1"
+              onClick={() => { toast.dismiss(t.id); navigate('/admin/safety'); }}
+            >
+              Open Safety Center
+            </button>
+          </div>
+        ),
+        { duration: Infinity, id: `sos-${data.id || Date.now()}` },
+      );
     });
 
     socketService.on('new_driver_registration', (data) => {

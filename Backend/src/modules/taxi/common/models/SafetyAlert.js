@@ -77,6 +77,13 @@ const safetyAlertSchema = new mongoose.Schema(
       default: null,
       index: true,
     },
+    // Who was involved, as they were when SOS was pressed: the rider, the
+    // driver and their vehicle, the ride, and where the driver was. Kept as a
+    // snapshot so the record still says who it was if a profile changes.
+    snapshot: {
+      type: mongoose.Schema.Types.Mixed,
+      default: () => ({}),
+    },
     riderName: {
       type: String,
       default: '',
