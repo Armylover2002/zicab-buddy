@@ -151,7 +151,52 @@ const DeliveryDetailsDrawer = ({ delivery, onClose }) => {
               <p className="text-[13px] font-bold text-gray-900">{delivery.distance || '-'} / {delivery.fare || '-'}</p>
             </div>
           </div>
-          
+
+          {/* Parcel photos: the sender's own photos + the driver's pickup /
+              delivery proof, so the admin can see what was sent and handed over. */}
+          {(() => {
+            const parcel = delivery.parcel || {};
+            const resolveUrl = (u) =>
+              !u ? '' : (String(u).startsWith('http') ? u : `${globalThis.__LEGACY_BACKEND_ORIGIN__}${u}`);
+            const senderPhotos = Array.isArray(parcel.photos) ? parcel.photos.filter(Boolean) : [];
+            const proofs = [
+              { label: 'Picked up', url: parcel.pickupProof },
+              { label: 'Delivered', url: parcel.deliveryProof },
+            ].filter((p) => p.url);
+            if (!senderPhotos.length && !proofs.length) return null;
+            return (
+              <div className="space-y-4">
+                {senderPhotos.length > 0 && (
+                  <div>
+                    <p className="text-[11px] uppercase tracking-wider font-bold text-gray-400 mb-2">Sender's parcel photos</p>
+                    <div className="flex flex-wrap gap-3">
+                      {senderPhotos.map((u, i) => (
+                        <a key={i} href={resolveUrl(u)} target="_blank" rel="noreferrer">
+                          <img src={resolveUrl(u)} alt="Parcel" className="h-24 w-24 rounded-lg border border-gray-200 object-cover" />
+                        </a>
+                      ))}
+                    </div>
+                  </div>
+                )}
+                {proofs.length > 0 && (
+                  <div>
+                    <p className="text-[11px] uppercase tracking-wider font-bold text-gray-400 mb-2">Handover proof</p>
+                    <div className="flex flex-wrap gap-3">
+                      {proofs.map((p, i) => (
+                        <div key={i} className="text-center">
+                          <a href={resolveUrl(p.url)} target="_blank" rel="noreferrer">
+                            <img src={resolveUrl(p.url)} alt={p.label} className="h-24 w-24 rounded-lg border border-gray-200 object-cover" />
+                          </a>
+                          <p className="text-[11px] font-semibold text-gray-500 mt-1">{p.label}</p>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
+              </div>
+            );
+          })()}
+
         </div>
         <div className="border-t border-gray-100 p-5 bg-white flex justify-end gap-3">
           <button onClick={() => handlePrintInvoice(delivery)} className="px-5 py-2 text-sm font-bold text-gray-700 bg-gray-100 rounded-lg hover:bg-gray-200 transition-colors flex items-center gap-2">

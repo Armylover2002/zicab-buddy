@@ -1561,7 +1561,7 @@ const driverLocationSeed = (driver) => {
 export const getRideDetails = async (rideId) => {
   const ride = await Ride.findById(rideId)
     .populate('deliveryId')
-    .populate('userId', 'name phone')
+    .populate('userId', 'name phone profileImage')
     .populate('driverId', 'name phone profileImage vehicleType vehicleIconType vehicleNumber vehicleColor vehicleMake vehicleModel vehicleImage rating bankDetails.upiId bankDetails.qrCodeImage bankDetails.upiVerificationStatus bankDetails.upiVerifiedName');
 
   if (!ride) {
@@ -1578,7 +1578,7 @@ const activeRideStatuses = [RIDE_STATUS.SEARCHING, RIDE_STATUS.ACCEPTED, RIDE_ST
 const populateRideRealtime = async (rideId) =>
   Ride.findById(rideId)
     .populate('deliveryId')
-    .populate('userId', 'name phone')
+    .populate('userId', 'name phone profileImage')
     .populate('driverId', 'name phone profileImage vehicleType vehicleIconType vehicleNumber vehicleColor vehicleMake vehicleModel vehicleImage rating bankDetails.upiId bankDetails.qrCodeImage bankDetails.upiVerificationStatus bankDetails.upiVerifiedName');
 
 export const serializeRideRealtime = (ride) => ({
@@ -1756,7 +1756,7 @@ export const getActiveRideForIdentity = async ({ role, entityId }) => {
       status: { $in: activeRideStatuses },
     })
       .sort({ updatedAt: -1 })
-      .populate('userId', 'name phone')
+      .populate('userId', 'name phone profileImage')
       .populate('driverId', 'name phone profileImage vehicleType vehicleIconType vehicleNumber vehicleColor vehicleMake vehicleModel vehicleImage rating bankDetails.upiId bankDetails.qrCodeImage bankDetails.upiVerificationStatus bankDetails.upiVerifiedName');
 
     return rides.find((ride) => !isRideScheduledForFuture(ride)) || null;

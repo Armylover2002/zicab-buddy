@@ -673,7 +673,7 @@ export const restartRideDispatchWithLatestFare = async (rideId) => {
   stopDispatchFlow(rideId, { releaseLease: false });
   await persistDispatchTrackingProgress({ rideId, reset: true }).catch(() => null);
 
-  const ride = await Ride.findById(rideId).populate('userId', 'name phone countryCode');
+  const ride = await Ride.findById(rideId).populate('userId', 'name phone countryCode profileImage');
   if (!ride || ride.status !== RIDE_STATUS.SEARCHING || ride.liveStatus !== RIDE_LIVE_STATUS.SEARCHING) {
     return;
   }
@@ -842,6 +842,7 @@ const emitRideRequestToDrivers = async ({
         // simply cannot be shown.
         fare: formatOfferFare(ride.fare),
         riderName: ride.userId?.name || 'Customer',
+        riderImage: ride.userId?.profileImage || '',
         pickupAddress: ride.pickupAddress || '',
         dropAddress: ride.dropAddress || '',
         pickupDistanceKm: formatOfferKm(
@@ -1331,7 +1332,7 @@ const dispatchAttempt = async (rideId, attemptIndex = 0) => {
     return;
   }
 
-  const ride = await Ride.findById(rideId).populate('userId', 'name phone countryCode');
+  const ride = await Ride.findById(rideId).populate('userId', 'name phone countryCode profileImage');
 
   if (!ride || ride.status !== RIDE_STATUS.SEARCHING) {
     stopDispatchFlow(rideId);
@@ -1535,7 +1536,7 @@ export const notifyLateAvailableDriver = async (driverId) => {
     const activeRideIds = Array.from(activeDispatches.keys());
 
     for (const rideId of activeRideIds) {
-      const ride = await Ride.findById(rideId).populate('userId', 'name phone countryCode');
+      const ride = await Ride.findById(rideId).populate('userId', 'name phone countryCode profileImage');
 
       if (!ride || ride.status !== RIDE_STATUS.SEARCHING) {
         continue;

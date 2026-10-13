@@ -6361,6 +6361,11 @@ const toAdminDeliveryRow = (ride) => {
       category: parcel.category || '',
       senderName: parcel.senderName || '',
       receiverName: parcel.receiverName || '',
+      // Sender's photos + the driver's pickup/delivery proof, so the admin can
+      // see exactly what was sent and handed over.
+      photos: Array.isArray(parcel.photos) ? parcel.photos : [],
+      pickupProof: parcel.pickupProof?.url || '',
+      deliveryProof: parcel.deliveryProof?.url || '',
     },
   };
 };
