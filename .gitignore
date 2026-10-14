@@ -7,3 +7,6 @@ Thumbs.db
 Appzeto 24_flutter_shell/
 Appzeto 24_driver_webview/
 scratch/
+
+# Private server access notes - never commit
+SERVER_NOTES.md
