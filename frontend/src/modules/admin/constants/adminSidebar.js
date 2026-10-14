@@ -71,7 +71,14 @@ export const ADMIN_SIDEBAR_SECTIONS = [
         ],
       },
       { icon: Gavel, label: 'Bidding', path: '/admin/settings/business/bid-ride', permission: 'settings.view' },
-      { icon: IndianRupee, label: 'Driver Subscription', path: '/admin/settings/business/driver-subscription', permission: 'settings.view' },
+      {
+        icon: IndianRupee,
+        label: 'Driver Subscription',
+        subItems: [
+          { label: 'Analytics', path: '/admin/driver-subscription/analytics', permission: 'earnings.view' },
+          { label: 'Plans & Settings', path: '/admin/settings/business/driver-subscription', permission: 'settings.view' },
+        ],
+      },
       {
         icon: TrendingUp,
         label: 'Price Hike',

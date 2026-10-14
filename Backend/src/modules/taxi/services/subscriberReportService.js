@@ -172,3 +172,183 @@ export const getSubscriberReport = async ({ date = '', vehicleClass = '', vehicl
     subscribers: rows,
   };
 };
+
+/**
+ * Driver Subscription Analytics, for the admin page of that name: cards per
+ * vehicle class, the count per class, a daily trend, the list, collections,
+ * renewals - over any range of pass days, not just one.
+ *
+ * Days are pass days (see passDay), the same as the Subscribers report, so
+ * "today" means the same thing on both pages. Mini trucks have no category on
+ * their vehicle type, so they are recognised by name.
+ */
+const ANALYTICS_CLASSES = ['auto', 'bike', 'car', 'truck'];
+const CLASS_LABELS = { auto: 'Auto', bike: 'Bike', car: 'Car', truck: 'Mini Truck', other: 'Other' };
+
+const classOfVehicle = (vehicle) => {
+  const category = String(vehicle?.category || '').toLowerCase();
+  if (CLASSES.includes(category)) return category;
+  if (/truck|van|pickup|tempo|loader/i.test(String(vehicle?.name || ''))) return 'truck';
+  return '';
+};
+
+const dayKey = (date, timezone) => new Intl.DateTimeFormat('en-CA', { timeZone: timezone }).format(date);
+
+/**
+ * @param from,to       YYYY-MM-DD pass days, inclusive; today when empty
+ * @param vehicleClass  auto | bike | car | truck | other
+ * @param method        wallet | bonus | ...
+ * @param status        active | expired
+ * @param q             matches driver, phone, vehicle, plan, transaction id
+ */
+export const getSubscriptionAnalytics = async ({ from = '', to = '', vehicleClass = '', method = '', status = '', q = '' } = {}) => {
+  const settings = await resolveDriverSubscriptionSettings();
+  const first = passDay(settings, from);
+  const last = to ? passDay(settings, to) : (from ? first : passDay(settings, ''));
+  const startsAt = first.startsAt <= last.startsAt ? first.startsAt : last.startsAt;
+  const endsAt = first.startsAt <= last.startsAt ? last.expiresAt : first.expiresAt;
+
+  // The trend covers the range, or the 7 days to its end when the range is
+  // shorter, capped at 31 days.
+  const rangeDays = Math.round((endsAt - startsAt) / 864e5);
+  const trendDays = Math.min(31, Math.max(7, rangeDays));
+  const trendStarts = new Date(endsAt.getTime() - trendDays * 864e5);
+
+  const [passes, vehicles] = await Promise.all([
+    DriverSubscription.find({ paidAt: { $ne: null }, startsAt: { $gte: trendStarts < startsAt ? trendStarts : startsAt, $lt: endsAt } })
+      .populate('driverId', 'name phone vehicleNumber vehicleType vehicleTypeId vehicleTypeIds')
+      .sort({ paidAt: -1 })
+      .lean(),
+    Vehicle.find({}).select('name category').lean(),
+  ]);
+  const vehicleById = new Map(vehicles.map((v) => [String(v._id), v]));
+  const now = new Date();
+
+  const allRows = passes.map((pass) => {
+    const driver = pass.driverId || {};
+    const typeIds = [...new Set([driver.vehicleTypeId, ...(driver.vehicleTypeIds || [])].filter(Boolean).map(String))];
+    const primary = vehicleById.get(typeIds[0] || '');
+    const covered = (pass.vehicleClasses || []).map((value) => String(value).toLowerCase());
+    const klass = classOfVehicle(primary) || (covered.length === 1 && CLASSES.includes(covered[0]) ? covered[0] : 'other');
+    const methodName = String(pass.paymentMethod || 'wallet').toLowerCase();
+    const free = FREE_METHODS.has(methodName);
+    const amount = Number(pass.amount || 0);
+    return {
+      id: String(pass._id),
+      driver_id: driver._id ? String(driver._id) : '',
+      driver_name: driver.name || 'Driver',
+      phone: driver.phone || '',
+      vehicle_number: driver.vehicleNumber || '',
+      vehicle_class: klass,
+      vehicle_class_label: CLASS_LABELS[klass] || 'Other',
+      vehicle_type: primary?.name || '',
+      plan_name: pass.planName || 'Daily pass',
+      amount,
+      free,
+      collected: free ? 0 : amount,
+      payment_method: methodName,
+      payment_status: pass.status === 'cancelled' ? 'cancelled' : 'paid',
+      pass_status: pass.status === 'active' && pass.expiresAt && new Date(pass.expiresAt) > now ? 'active' : 'expired',
+      paid_at: pass.paidAt,
+      starts_at: pass.startsAt,
+      expires_at: pass.expiresAt,
+      pass_day: dayKey(pass.startsAt, settings.timezone),
+      // Passes paid from the wallet carry no gateway reference; the pass id
+      // is the transaction id, as on its receipt.
+      transaction_id: pass.paymentReference || `SUB-${String(pass._id).slice(-8).toUpperCase()}`,
+    };
+  });
+
+  const applyFilters = (rows) => {
+    let out = rows;
+    const classFilter = String(vehicleClass || '').trim().toLowerCase();
+    const methodFilter = String(method || '').trim().toLowerCase();
+    const statusFilter = String(status || '').trim().toLowerCase();
+    const needle = String(q || '').trim().toLowerCase();
+    if (classFilter) out = out.filter((row) => row.vehicle_class === classFilter);
+    if (methodFilter) out = out.filter((row) => row.payment_method === methodFilter);
+    if (statusFilter) out = out.filter((row) => row.pass_status === statusFilter);
+    if (needle) {
+      out = out.filter((row) =>
+        [row.driver_name, row.phone, row.vehicle_number, row.vehicle_type, row.plan_name, row.transaction_id]
+          .some((value) => String(value || '').toLowerCase().includes(needle)));
+    }
+    return out;
+  };
+
+  const inRange = applyFilters(allRows.filter((row) => new Date(row.starts_at) >= startsAt && new Date(row.starts_at) < endsAt));
+
+  const classes = [...ANALYTICS_CLASSES, ...(inRange.some((row) => row.vehicle_class === 'other') ? ['other'] : [])];
+  const byClass = classes.map((key) => {
+    const rows = inRange.filter((row) => row.vehicle_class === key);
+    const prices = rows.filter((row) => !row.free).map((row) => row.amount);
+    const counts = prices.reduce((acc, p) => ({ ...acc, [p]: (acc[p] || 0) + 1 }), {});
+    const price = prices.length ? Number(Object.entries(counts).sort((a, b) => b[1] - a[1])[0][0]) : null;
+    return {
+      vehicle_class: key,
+      label: CLASS_LABELS[key],
+      subscribers: rows.length,
+      paid: rows.filter((row) => !row.free).length,
+      free: rows.filter((row) => row.free).length,
+      plan_amount: price,
+      revenue: round(rows.reduce((sum, row) => sum + row.collected, 0)),
+    };
+  });
+
+  // Daily counts per class over the trend window (the filters apply too).
+  const trendRows = applyFilters(allRows.filter((row) => new Date(row.starts_at) >= trendStarts));
+  const points = [];
+  for (let i = trendDays - 1; i >= 0; i -= 1) {
+    const day = dayKey(new Date(endsAt.getTime() - (i + 1) * 864e5 + 3600e3), settings.timezone);
+    const rows = trendRows.filter((row) => row.pass_day === day);
+    points.push({
+      date: day,
+      ...Object.fromEntries(classes.map((key) => [key, rows.filter((row) => row.vehicle_class === key).length])),
+      total: rows.length,
+      revenue: round(rows.reduce((sum, row) => sum + row.collected, 0)),
+    });
+  }
+
+  // Drivers who bought more than one pass in the range.
+  const byDriver = new Map();
+  for (const row of inRange) {
+    const entry = byDriver.get(row.driver_id) || {
+      driver_id: row.driver_id,
+      driver_name: row.driver_name,
+      phone: row.phone,
+      vehicle_class_label: row.vehicle_class_label,
+      passes: 0,
+      collected: 0,
+      last_paid_at: null,
+    };
+    entry.passes += 1;
+    entry.collected = round(entry.collected + row.collected);
+    if (!entry.last_paid_at || new Date(row.paid_at) > new Date(entry.last_paid_at)) entry.last_paid_at = row.paid_at;
+    byDriver.set(row.driver_id, entry);
+  }
+
+  return {
+    range: {
+      from: dayKey(startsAt, settings.timezone),
+      to: dayKey(new Date(endsAt.getTime() - 3600e3), settings.timezone),
+      starts_at: startsAt.toISOString(),
+      ends_at: endsAt.toISOString(),
+      timezone: settings.timezone,
+      day_starts_hour: settings.cycleStartHour,
+    },
+    totals: {
+      subscribers: inRange.length,
+      drivers: byDriver.size,
+      paid: inRange.filter((row) => !row.free).length,
+      free: inRange.filter((row) => row.free).length,
+      revenue: round(inRange.reduce((sum, row) => sum + row.collected, 0)),
+      active: inRange.filter((row) => row.pass_status === 'active').length,
+      expired: inRange.filter((row) => row.pass_status === 'expired').length,
+    },
+    by_class: byClass,
+    trend: { days: trendDays, classes, labels: CLASS_LABELS, points },
+    subscriptions: inRange,
+    renewals: [...byDriver.values()].filter((entry) => entry.passes > 1).sort((a, b) => b.passes - a.passes),
+    methods: [...new Set(allRows.map((row) => row.payment_method))],
+  };
+};

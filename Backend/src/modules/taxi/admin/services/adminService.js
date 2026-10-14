@@ -6364,9 +6364,21 @@ const toAdminDeliveryRow = (ride) => {
       // Sender's photos + the driver's pickup/delivery proof, so the admin can
       // see exactly what was sent and handed over.
       photos: Array.isArray(parcel.photos) ? parcel.photos : [],
-      pickupProof: parcel.pickupProof?.url || '',
-      deliveryProof: parcel.deliveryProof?.url || '',
+      // The driver's proof lands on the ride first and is then copied to the
+      // delivery, so read the ride's and fall back to the delivery's.
+      pickupProof: ride.parcel?.pickupProof?.url || parcel.pickupProof?.url || '',
+      deliveryProof: ride.parcel?.deliveryProof?.url || parcel.deliveryProof?.url || '',
+      // When each proof photo was taken, for the Delivery Proof Photos panel.
+      pickupProofAt: ride.parcel?.pickupProof?.at || parcel.pickupProof?.at || null,
+      deliveryProofAt: ride.parcel?.deliveryProof?.at || parcel.deliveryProof?.at || null,
     },
+    // For the row's Customer / Driver details actions.
+    userId: ride.userId?._id ? String(ride.userId._id) : (ride.userId ? String(ride.userId) : ''),
+    driverId: ride.driverId?._id ? String(ride.driverId._id) : (ride.driverId ? String(ride.driverId) : ''),
+    userPhone: ride.userId?.phone || '',
+    driverPhone: ride.driverId?.phone || '',
+    completedAt: ride.completedAt || null,
+    cancelledAt: ride.cancelledAt || null,
   };
 };
 
@@ -6849,15 +6861,40 @@ export const listRideRequests = async (query = {}) => {
 };
 
 export const listDeliveries = async (query = {}) => {
-  return listAdminRides({
-    query,
-    baseFilter: {
-      serviceType: 'parcel',
-    },
-    variant: 'deliveries',
-    serializer: toAdminDeliveryRow,
-    includeParcel: true,
-  });
+  const [list, stats] = await Promise.all([
+    listAdminRides({
+      query,
+      baseFilter: {
+        serviceType: 'parcel',
+      },
+      variant: 'deliveries',
+      serializer: toAdminDeliveryRow,
+      includeParcel: true,
+    }),
+    getDeliveryStats(),
+  ]);
+  return { ...list, stats };
+};
+
+/// Counts for the cards on the Deliveries page, across every delivery - the
+/// page used to work them out from the ten rows on screen, and "today" was
+/// half of those rows.
+const getDeliveryStats = async () => {
+  const base = { serviceType: 'parcel', adminDeletedAt: null };
+  const count = (filter) => Ride.countDocuments({ ...base, ...filter });
+  // Midnight in India, whatever the server's own timezone.
+  const istDay = new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Kolkata' }).format(new Date());
+  const startOfToday = new Date(`${istDay}T00:00:00+05:30`);
+  const [total, completed, cancelled, pending, onTrip, today] = await Promise.all([
+    count({}),
+    count({ status: RIDE_STATUS.COMPLETED }),
+    count({ status: RIDE_STATUS.CANCELLED }),
+    // Booked but no driver has taken it yet.
+    count({ status: RIDE_STATUS.SEARCHING }),
+    count({ status: { $in: [RIDE_STATUS.ACCEPTED, RIDE_STATUS.ONGOING] } }),
+    count({ createdAt: { $gte: startOfToday } }),
+  ]);
+  return { total, completed, cancelled, pending, onTrip, today };
 };
 
 export const listIntercityTrips = async (query = {}) => {

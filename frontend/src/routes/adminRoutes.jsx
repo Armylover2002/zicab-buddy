@@ -46,6 +46,7 @@ import {
   AdminDriverWallet,
   AdminEarnings,
   AdminPayments,
+  AdminDriverSubscriptionAnalytics,
   AdminEarningsDetail,
   AdminEmployeeCreate,
   AdminEmployeeDetails,
@@ -206,6 +207,7 @@ const adminRoutes = (
       <Route path="earnings" element={<AdminEarnings />} />
       <Route path="earnings/:metric" element={<AdminEarningsDetail />} />
       <Route path="payments" element={<AdminPayments />} />
+      <Route path="driver-subscription/analytics" element={<AdminDriverSubscriptionAnalytics />} />
       <Route path="chat" element={<AdminChat />} />
       <Route path="trips" element={<AdminTrips />} />
       <Route path="deliveries" element={<AdminDeliveries />} />

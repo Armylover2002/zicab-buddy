@@ -179,6 +179,7 @@ import {
   getRideRequests,
   getPayments,
   getPaymentSubscribers,
+  getDriverSubscriptionAnalytics,
   getPaymentInvoice,
   rejectUserDeletionRequest,
   rejectDriverDeletionRequest,
@@ -351,6 +352,7 @@ adminRouter.post('/admin/driver-subscriptions/plans/create', createSubscriptionP
 adminRouter.patch('/admin/driver-subscriptions/plans/:id', updateSubscriptionPlan);
 adminRouter.delete('/admin/driver-subscriptions/plans/:id', deleteSubscriptionPlan);
 adminRouter.get('/admin/driver-subscriptions/payments', getDriverSubscriptionPayments);
+adminRouter.get('/admin/driver-subscriptions/analytics', getDriverSubscriptionAnalytics);
 adminRouter.get('/admin/driver-subscriptions/settings', getSubscriptionSettings);
 adminRouter.post('/admin/driver-subscriptions/settings', updateSubscriptionSettings);
 adminRouter.get('/admin/user-subscriptions/plans/list', getCustomerSubscriptionPlans);

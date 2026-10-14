@@ -1,7 +1,7 @@
 import { asyncHandler } from "../../../../utils/asyncHandler.js";
 import * as adminService from "../services/adminService.js";
 import { getPayment, listPayments } from '../../services/paymentLedgerService.js';
-import { getSubscriberReport } from '../../services/subscriberReportService.js';
+import { getSubscriberReport, getSubscriptionAnalytics } from '../../services/subscriberReportService.js';
 import { buildPaymentInvoicePdf } from '../../services/invoiceService.js';
 import { hasAdminPermission } from "../services/adminAccessService.js";
 import * as landingContentService from "../services/landingContentService.js";
@@ -1889,3 +1889,9 @@ export const getPaymentInvoice = asyncHandler(async (req, res) => {
   res.setHeader('Content-Disposition', `attachment; filename="${filename}"`);
   res.send(buffer);
 });
+
+/// Driver Subscription Analytics: cards per vehicle class, trend, list,
+/// renewals for a range of pass days (?from&to&vehicleClass&method&status&q).
+export const getDriverSubscriptionAnalytics = asyncHandler(async (req, res) =>
+  ok(res, await getSubscriptionAnalytics(req.query || {})),
+);

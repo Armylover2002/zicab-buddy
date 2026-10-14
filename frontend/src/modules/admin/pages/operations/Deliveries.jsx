@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { ChevronDown, Filter, LoaderCircle, MoreVertical, Search, CheckCircle, Clock, XCircle, MapPin, Truck, ChevronRight, X, FileText, UserPlus, Eye, Download, User, CreditCard } from 'lucide-react';
+import { ChevronDown, Filter, LoaderCircle, MoreVertical, Search, CheckCircle, Clock, XCircle, MapPin, Truck, ChevronRight, X, FileText, Eye, Download, User, CreditCard, Image as ImageIcon, Info, Maximize2 } from 'lucide-react';
 import { adminService } from '../../services/adminService';
+import { useNavigate } from 'react-router-dom';
 import toast from 'react-hot-toast';
 
 const STATUS_STYLES = {
@@ -211,7 +212,51 @@ const DeliveryDetailsDrawer = ({ delivery, onClose }) => {
   );
 };
 
-const ActionMenu = ({ row, onViewDetails, onPrintInvoice }) => {
+const resolveMediaUrl = (u) =>
+  !u ? '' : (String(u).startsWith('http') ? u : `${globalThis.__LEGACY_BACKEND_ORIGIN__}${u}`);
+
+/// The server's numbered invoice PDF for a completed delivery, as on the
+/// Payments page.
+const downloadInvoice = async (row) => {
+  try {
+    const token = localStorage.getItem('adminToken');
+    const res = await fetch(
+      `${globalThis.__LEGACY_BACKEND_ORIGIN__}/api/v1/admin/payments/ride/${row.id}/invoice`,
+      { headers: token ? { Authorization: `Bearer ${token}` } : {} },
+    );
+    if (!res.ok) throw new Error(`Invoice failed (${res.status})`);
+    const blob = await res.blob();
+    const name = /filename="([^"]+)"/.exec(res.headers.get('Content-Disposition') || '')?.[1] || `${row.requestId}.pdf`;
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = name;
+    document.body.appendChild(link);
+    link.click();
+    link.remove();
+    URL.revokeObjectURL(url);
+  } catch (err) {
+    console.error(err);
+    toast.error('Could not download the invoice');
+  }
+};
+
+const MenuItem = ({ icon: Icon, label, onClick, disabled, danger, title }) => (
+  <button
+    type="button"
+    disabled={disabled}
+    title={title}
+    onClick={(e) => { e.stopPropagation(); onClick(); }}
+    className={`w-full flex items-center gap-2.5 px-3 py-2 text-[12px] font-semibold text-left transition-colors disabled:opacity-40 disabled:cursor-not-allowed ${
+      danger ? 'text-red-600 hover:bg-red-50' : 'text-gray-700 hover:bg-gray-50'
+    }`}
+  >
+    <Icon size={14} className={danger ? 'text-red-500' : 'text-gray-400'} />
+    {label}
+  </button>
+);
+
+const ActionMenu = ({ row, onViewDetails, onPrintInvoice, onProofPhotos, onPaymentDetails, onCancel, onTrack, onCustomer, onDriver }) => {
   const [isOpen, setIsOpen] = useState(false);
   const menuRef = useRef(null);
 
@@ -225,19 +270,16 @@ const ActionMenu = ({ row, onViewDetails, onPrintInvoice }) => {
     return () => document.removeEventListener('mousedown', handleClickOutside);
   }, []);
 
-  const handleNotImplemented = (action) => {
-    toast.error(`Backend API for '${action}' is not implemented yet.`);
-    setIsOpen(false);
-  };
-
+  const run = (fn) => () => { setIsOpen(false); fn(); };
   const isCompleted = row.tripStatus === 'COMPLETED';
   const isCancelled = row.tripStatus === 'CANCELLED';
   const isOngoing = row.tripStatus === 'ON_TRIP' || row.tripStatus === 'ONGOING';
-  const hasDriver = row.driverName && row.driverName !== '--' && row.driverName !== 'N/A';
+  const hasDriver = Boolean(row.driverId);
+  const hasProof = Boolean(row.parcel?.pickupProof || row.parcel?.deliveryProof || row.parcel?.photos?.length);
 
   return (
     <div className="relative" ref={menuRef}>
-      <button 
+      <button
         onClick={(e) => { e.stopPropagation(); setIsOpen(!isOpen); }}
         className="p-1.5 text-gray-400 hover:text-gray-900 hover:bg-gray-100 rounded-lg transition-colors focus:outline-none focus:ring-2 focus:ring-yellow-400"
         aria-label="Actions"
@@ -247,75 +289,139 @@ const ActionMenu = ({ row, onViewDetails, onPrintInvoice }) => {
       </button>
 
       {isOpen && (
-        <div className="absolute right-0 top-full mt-1 w-48 bg-white rounded-xl shadow-lg border border-gray-100 py-1.5 z-50">
-          <button 
-            onClick={() => { setIsOpen(false); onViewDetails(); }}
-            className="w-full text-left px-4 py-2 text-xs font-semibold text-gray-700 hover:bg-yellow-50 hover:text-yellow-900 flex items-center gap-2"
-          >
-            <Eye size={14} /> View Details
-          </button>
-          <button 
-            disabled={isCompleted || isCancelled || isOngoing || hasDriver}
-            onClick={() => handleNotImplemented('Assign Driver')}
-            className="w-full text-left px-4 py-2 text-xs font-semibold text-gray-700 hover:bg-yellow-50 hover:text-yellow-900 flex items-center gap-2 disabled:opacity-40 disabled:hover:bg-white disabled:hover:text-gray-700"
-          >
-            <UserPlus size={14} /> Assign Driver
-          </button>
-          <button 
-            onClick={() => handleNotImplemented('Change Status')}
-            className="w-full text-left px-4 py-2 text-xs font-semibold text-gray-700 hover:bg-yellow-50 hover:text-yellow-900 flex items-center gap-2"
-          >
-            <CheckCircle size={14} /> Change Status
-          </button>
-          <button 
-            disabled={!isOngoing}
-            onClick={() => handleNotImplemented('Track Delivery')}
-            className="w-full text-left px-4 py-2 text-xs font-semibold text-gray-700 hover:bg-yellow-50 hover:text-yellow-900 flex items-center gap-2 disabled:opacity-40 disabled:hover:bg-white disabled:hover:text-gray-700"
-          >
-            <MapPin size={14} /> Track Delivery
-          </button>
-          <div className="h-px bg-gray-100 my-1"></div>
-          <button 
-            onClick={() => handleNotImplemented('Customer Details')}
-            className="w-full text-left px-4 py-2 text-xs font-semibold text-gray-700 hover:bg-yellow-50 hover:text-yellow-900 flex items-center gap-2"
-          >
-            <User size={14} /> Customer Details
-          </button>
-          <button 
-            onClick={() => handleNotImplemented('Driver Details')}
-            className="w-full text-left px-4 py-2 text-xs font-semibold text-gray-700 hover:bg-yellow-50 hover:text-yellow-900 flex items-center gap-2"
-          >
-            <Truck size={14} /> Driver Details
-          </button>
-          <button 
-            onClick={() => handleNotImplemented('Payment Details')}
-            className="w-full text-left px-4 py-2 text-xs font-semibold text-gray-700 hover:bg-yellow-50 hover:text-yellow-900 flex items-center gap-2"
-          >
-            <CreditCard size={14} /> Payment Details
-          </button>
-          <div className="h-px bg-gray-100 my-1"></div>
-          <button 
-            onClick={() => { setIsOpen(false); onPrintInvoice(); }}
-            className="w-full text-left px-4 py-2 text-xs font-semibold text-gray-700 hover:bg-yellow-50 hover:text-yellow-900 flex items-center gap-2"
-          >
-            <FileText size={14} /> Print Invoice
-          </button>
-          <button 
-            onClick={() => { setIsOpen(false); onPrintInvoice(); }}
-            className="w-full text-left px-4 py-2 text-xs font-semibold text-gray-700 hover:bg-yellow-50 hover:text-yellow-900 flex items-center gap-2"
-          >
-            <Download size={14} /> Download Invoice
-          </button>
-          <div className="h-px bg-gray-100 my-1"></div>
-          <button 
-            disabled={isCompleted || isCancelled}
-            onClick={() => handleNotImplemented('Cancel Delivery')}
-            className="w-full text-left px-4 py-2 text-xs font-semibold text-red-600 hover:bg-red-50 flex items-center gap-2 disabled:opacity-40 disabled:hover:bg-white"
-          >
-            <XCircle size={14} /> Cancel Delivery
-          </button>
+        <div className="absolute right-0 top-full mt-1 w-52 bg-white rounded-xl shadow-lg border border-gray-100 py-1.5 z-50 text-left">
+          <MenuItem icon={Eye} label="View Details" onClick={run(onViewDetails)} />
+          <MenuItem icon={ImageIcon} label="Delivery Proof Photos" onClick={run(onProofPhotos)} disabled={!hasProof} title={hasProof ? '' : 'No photos uploaded yet'} />
+          <MenuItem icon={MapPin} label="Track Delivery" onClick={run(onTrack)} disabled={!isOngoing} title={isOngoing ? '' : 'Only while the delivery is on its way'} />
+          <div className="my-1 border-t border-gray-100" />
+          <MenuItem icon={User} label="Customer Details" onClick={run(onCustomer)} disabled={!row.userId} />
+          <MenuItem icon={Truck} label="Driver Details" onClick={run(onDriver)} disabled={!hasDriver} title={hasDriver ? '' : 'No driver assigned'} />
+          <MenuItem icon={CreditCard} label="Payment Details" onClick={run(onPaymentDetails)} />
+          <div className="my-1 border-t border-gray-100" />
+          <MenuItem icon={FileText} label="Print Invoice" onClick={run(onPrintInvoice)} />
+          <MenuItem icon={Download} label="Download Invoice" onClick={run(() => downloadInvoice(row))} disabled={!isCompleted} title={isCompleted ? '' : 'Available once delivered'} />
+          {!isCompleted && !isCancelled && (
+            <>
+              <div className="my-1 border-t border-gray-100" />
+              <MenuItem icon={XCircle} label="Cancel Delivery" onClick={run(onCancel)} danger />
+            </>
+          )}
         </div>
       )}
+    </div>
+  );
+};
+
+const photoTime = (value) =>
+  value ? new Date(value).toLocaleString('en-IN', { day: '2-digit', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' }) : '';
+
+/// "Delivery Proof Photos": the driver's pickup and delivery photos, and the
+/// sender's own parcel photos, with the delivery's key facts.
+const ProofPhotosDrawer = ({ delivery, onClose }) => {
+  if (!delivery) return null;
+  const parcel = delivery.parcel || {};
+  const shots = [
+    { label: 'Pickup Photo', url: parcel.pickupProof, at: parcel.pickupProofAt },
+    { label: 'Delivery Confirmation Photo', url: parcel.deliveryProof, at: parcel.deliveryProofAt },
+  ];
+  const senderPhotos = Array.isArray(parcel.photos) ? parcel.photos.filter(Boolean) : [];
+  const facts = [
+    ['Request ID', delivery.requestId],
+    ['Trip Status', String(delivery.tripStatus || '').replace('_', ' ').toLowerCase()],
+    ['Transport Type', delivery.transportType],
+    ['Driver Name', delivery.driverName],
+    ['User Name', delivery.userName],
+    ['Date & Time', photoTime(delivery.date)],
+  ];
+
+  return (
+    <div className="fixed inset-0 z-[70] flex justify-end bg-black/30" onClick={onClose}>
+      <div className="h-full w-full max-w-md bg-white shadow-2xl overflow-y-auto" onClick={(e) => e.stopPropagation()}>
+        <div className="flex items-center justify-between px-5 py-4 border-b border-gray-100">
+          <h2 className="flex items-center gap-2 text-lg font-bold text-gray-900"><ImageIcon size={18} /> Delivery Proof Photos</h2>
+          <button onClick={onClose} className="p-2 text-gray-400 hover:text-gray-900 hover:bg-gray-100 rounded-full" aria-label="Close"><X size={18} /></button>
+        </div>
+        <div className="p-5 space-y-5">
+          <div className="flex items-start gap-2 rounded-lg bg-blue-50 px-3 py-2.5 text-[12px] text-blue-800">
+            <Info size={14} className="mt-0.5 shrink-0" />
+            Photos the driver took at pickup and delivery, and any the customer added when booking.
+          </div>
+          <dl className="grid grid-cols-[120px_1fr] gap-y-2 text-[13px]">
+            {facts.map(([label, value]) => (
+              <React.Fragment key={label}>
+                <dt className="text-gray-500">{label}</dt>
+                <dd className="font-semibold text-gray-900 capitalize">{value || '-'}</dd>
+              </React.Fragment>
+            ))}
+          </dl>
+          {shots.map((shot) => (
+            <div key={shot.label}>
+              <div className="flex items-center justify-between mb-2">
+                <p className="text-[13px] font-bold text-gray-900 border-l-4 border-blue-600 pl-2">{shot.label}</p>
+                <span className="text-[11px] text-gray-500">{photoTime(shot.at)}</span>
+              </div>
+              {shot.url ? (
+                <div className="relative">
+                  <img src={resolveMediaUrl(shot.url)} alt={shot.label} className="w-full max-h-72 object-cover rounded-lg border border-gray-200" />
+                  <a
+                    href={resolveMediaUrl(shot.url)}
+                    target="_blank"
+                    rel="noreferrer"
+                    className="absolute bottom-2 right-2 flex items-center gap-1 rounded-md bg-black/70 px-2 py-1 text-[11px] font-semibold text-white hover:bg-black"
+                  >
+                    <Maximize2 size={12} /> View Full Image
+                  </a>
+                </div>
+              ) : (
+                <div className="rounded-lg border border-dashed border-gray-200 py-8 text-center text-[12px] text-gray-400">Not uploaded yet</div>
+              )}
+            </div>
+          ))}
+          {senderPhotos.length > 0 && (
+            <div>
+              <p className="text-[13px] font-bold text-gray-900 border-l-4 border-amber-500 pl-2 mb-2">Customer's Parcel Photos</p>
+              <div className="grid grid-cols-3 gap-2">
+                {senderPhotos.map((u, i) => (
+                  <a key={i} href={resolveMediaUrl(u)} target="_blank" rel="noreferrer">
+                    <img src={resolveMediaUrl(u)} alt="Parcel" className="h-24 w-full rounded-lg border border-gray-200 object-cover" />
+                  </a>
+                ))}
+              </div>
+            </div>
+          )}
+        </div>
+      </div>
+    </div>
+  );
+};
+
+/// How the delivery was paid - by how it actually was, not just the booking.
+const PaymentDetailsModal = ({ delivery, onClose }) => {
+  if (!delivery) return null;
+  const rows = [
+    ['Fare', `₹${Number(delivery.fare || 0).toLocaleString('en-IN')}`],
+    ['Method', String(delivery.paymentOption || 'cash').toLowerCase()],
+    ['Detail', delivery.paymentDetail],
+    ['Status', delivery.paymentStatus],
+    ['Reference', delivery.paymentReference],
+  ];
+  return (
+    <div className="fixed inset-0 z-[70] flex items-center justify-center bg-black/30 p-4" onClick={onClose}>
+      <div className="w-full max-w-sm rounded-xl bg-white shadow-2xl" onClick={(e) => e.stopPropagation()}>
+        <div className="flex items-center justify-between px-5 py-3 border-b border-gray-100">
+          <h2 className="flex items-center gap-2 text-base font-bold text-gray-900"><CreditCard size={16} /> Payment Details</h2>
+          <button onClick={onClose} className="p-1.5 text-gray-400 hover:text-gray-900 rounded-full" aria-label="Close"><X size={16} /></button>
+        </div>
+        <dl className="grid grid-cols-[100px_1fr] gap-y-2 px-5 py-4 text-[13px]">
+          {rows.map(([label, value]) => (
+            <React.Fragment key={label}>
+              <dt className="text-gray-500">{label}</dt>
+              <dd className="font-semibold text-gray-900 capitalize break-all">{value || '-'}</dd>
+            </React.Fragment>
+          ))}
+        </dl>
+        <p className="px-5 pb-4 text-[11px] text-gray-400">{delivery.requestId}</p>
+      </div>
     </div>
   );
 };
@@ -341,7 +447,13 @@ const Deliveries = () => {
   const [rows, setRows] = useState([]);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState('');
-  
+  const [page, setPage] = useState(1);
+  const [reloadKey, setReloadKey] = useState(0);
+  const [listTotal, setListTotal] = useState(0);
+  const [proofDelivery, setProofDelivery] = useState(null);
+  const [paymentDelivery, setPaymentDelivery] = useState(null);
+  const navigate = useNavigate();
+
   // Stats
   const [stats, setStats] = useState({
     total: 0,
@@ -379,7 +491,7 @@ const Deliveries = () => {
       setError('');
       try {
         const response = await adminService.getDeliveries({
-          page: 1,
+          page,
           limit: Number(pageSize) || 10,
           tab: activeTab.toLowerCase(),
           search,
@@ -392,24 +504,10 @@ const Deliveries = () => {
         if (!active) return;
         setRows(results);
         
-        // Derive stats if backend doesn't provide them yet
-        if (payload?.stats) {
-          setStats(payload.stats);
-        } else {
-          // Mock stats derived from results for visual placeholder until backend API provides it
-          const completed = results.filter(r => r.tripStatus === 'COMPLETED').length;
-          const cancelled = results.filter(r => r.tripStatus === 'CANCELLED').length;
-          const onTrip = results.filter(r => r.tripStatus === 'ON_TRIP' || r.tripStatus === 'ONGOING').length;
-          const pending = results.filter(r => r.tripStatus === 'PENDING' || r.tripStatus === 'UPCOMING').length;
-          setStats({
-            total: payload.paginator?.total || results.length || 0,
-            completed,
-            pending,
-            cancelled,
-            onTrip,
-            today: results.length > 0 ? Math.floor(results.length / 2) : 0, 
-          });
-        }
+        setListTotal(Number(payload?.paginator?.total ?? results.length) || 0);
+        // Across every delivery, from the server - these used to be counted
+        // from the rows on this page, with "today" as half of them.
+        if (payload?.stats) setStats(payload.stats);
       } catch (loadError) {
         if (active) {
           setRows([]);
@@ -421,7 +519,26 @@ const Deliveries = () => {
     };
     loadDeliveries();
     return () => { active = false; };
+  }, [activeTab, pageSize, search, activeFilters, page, reloadKey]);
+
+  // A new tab, search or filter starts again from the first page.
+  useEffect(() => {
+    setPage(1);
   }, [activeTab, pageSize, search, activeFilters]);
+
+  const totalPages = Math.max(1, Math.ceil(listTotal / (Number(pageSize) || 10)));
+
+  const cancelDelivery = async (row) => {
+    const reason = window.prompt(`Cancel ${row.requestId}? Give a reason:`, 'Cancelled by admin');
+    if (reason === null) return;
+    try {
+      await adminService.cancelRideRequest(row.id, reason);
+      toast.success('Delivery cancelled');
+      setReloadKey((k) => k + 1);
+    } catch (err) {
+      toast.error(err?.response?.data?.message || err?.message || 'Could not cancel the delivery');
+    }
+  };
 
   const applyFilters = () => {
     setActiveFilters(draftFilters);
@@ -524,7 +641,7 @@ const Deliveries = () => {
                 )}
               </button>
               <button 
-                onClick={() => handleNotImplemented('Refresh')}
+                onClick={() => setReloadKey((k) => k + 1)}
                 className="hidden sm:flex h-8 items-center justify-center px-3 rounded-md border border-gray-200 bg-white text-[11px] font-bold text-gray-700 hover:bg-gray-50 transition-colors"
               >
                 Refresh
@@ -673,10 +790,16 @@ const Deliveries = () => {
                         </span>
                       </td>
                       <td className="px-4 py-2 text-right">
-                        <ActionMenu 
-                          row={row} 
-                          onViewDetails={() => setSelectedDelivery(row)} 
+                        <ActionMenu
+                          row={row}
+                          onViewDetails={() => setSelectedDelivery(row)}
                           onPrintInvoice={() => handlePrintInvoice(row)}
+                          onProofPhotos={() => setProofDelivery(row)}
+                          onPaymentDetails={() => setPaymentDelivery(row)}
+                          onCancel={() => cancelDelivery(row)}
+                          onTrack={() => navigate('/admin/ongoing')}
+                          onCustomer={() => navigate(`/admin/users/${row.userId}`)}
+                          onDriver={() => navigate(`/admin/drivers/${row.driverId}`)}
                         />
                       </td>
                     </tr>
@@ -690,21 +813,36 @@ const Deliveries = () => {
           {!isLoading && rows.length > 0 && (
             <div className="border-t border-gray-100 px-4 py-3 bg-gray-50/50 flex flex-col sm:flex-row items-center justify-between gap-3">
               <span className="text-xs font-medium text-gray-500">
-                Showing <span className="font-bold text-gray-900">1–{rows.length}</span> of <span className="font-bold text-gray-900">{stats.total || rows.length}</span> entries
+                Showing <span className="font-bold text-gray-900">{(page - 1) * (Number(pageSize) || 10) + 1}–{(page - 1) * (Number(pageSize) || 10) + rows.length}</span> of <span className="font-bold text-gray-900">{listTotal}</span> entries
               </span>
               <div className="flex items-center gap-1">
-                <button className="px-3 py-1.5 text-xs font-bold text-gray-600 bg-white border border-gray-200 rounded hover:bg-gray-50 transition-colors disabled:opacity-50">Previous</button>
-                <button className="px-3 py-1.5 text-xs font-bold text-white bg-black rounded hover:bg-gray-900 transition-colors shadow-sm disabled:opacity-50">Next</button>
+                <button
+                  onClick={() => setPage((p) => Math.max(1, p - 1))}
+                  disabled={page <= 1}
+                  className="px-3 py-1.5 text-xs font-bold text-gray-600 bg-white border border-gray-200 rounded hover:bg-gray-50 transition-colors disabled:opacity-50"
+                >
+                  Previous
+                </button>
+                <span className="px-2 text-xs font-semibold text-gray-500">Page {page} of {totalPages}</span>
+                <button
+                  onClick={() => setPage((p) => Math.min(totalPages, p + 1))}
+                  disabled={page >= totalPages}
+                  className="px-3 py-1.5 text-xs font-bold text-white bg-black rounded hover:bg-gray-900 transition-colors shadow-sm disabled:opacity-50"
+                >
+                  Next
+                </button>
               </div>
             </div>
           )}
         </div>
       </div>
 
-      <DeliveryDetailsDrawer 
-        delivery={selectedDelivery} 
-        onClose={() => setSelectedDelivery(null)} 
+      <DeliveryDetailsDrawer
+        delivery={selectedDelivery}
+        onClose={() => setSelectedDelivery(null)}
       />
+      <ProofPhotosDrawer delivery={proofDelivery} onClose={() => setProofDelivery(null)} />
+      <PaymentDetailsModal delivery={paymentDelivery} onClose={() => setPaymentDelivery(null)} />
     </div>
   );
 };
