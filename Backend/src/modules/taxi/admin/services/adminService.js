@@ -6362,8 +6362,12 @@ const toAdminDeliveryRow = (ride) => {
       senderName: parcel.senderName || '',
       receiverName: parcel.receiverName || '',
       // Sender's photos + the driver's pickup/delivery proof, so the admin can
-      // see exactly what was sent and handed over.
-      photos: Array.isArray(parcel.photos) ? parcel.photos : [],
+      // see exactly what was sent and handed over. Read the delivery mirror
+      // first, falling back to the ride's own parcel so photos show even before
+      // the delivery doc has synced.
+      photos: Array.isArray(parcel.photos) && parcel.photos.length
+        ? parcel.photos
+        : (Array.isArray(ride.parcel?.photos) ? ride.parcel.photos : []),
       // The driver's proof lands on the ride first and is then copied to the
       // delivery, so read the ride's and fall back to the delivery's.
       pickupProof: ride.parcel?.pickupProof?.url || parcel.pickupProof?.url || '',
