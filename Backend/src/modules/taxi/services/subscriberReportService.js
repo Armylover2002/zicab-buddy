@@ -330,7 +330,8 @@ export const getSubscriptionAnalytics = async ({ from = '', to = '', vehicleClas
   return {
     range: {
       from: dayKey(startsAt, settings.timezone),
-      to: dayKey(new Date(endsAt.getTime() - 3600e3), settings.timezone),
+      // The last pass day is the one that starts a day before the range ends.
+      to: dayKey(new Date(endsAt.getTime() - 864e5 + 3600e3), settings.timezone),
       starts_at: startsAt.toISOString(),
       ends_at: endsAt.toISOString(),
       timezone: settings.timezone,
