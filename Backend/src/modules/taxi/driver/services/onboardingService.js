@@ -5,20 +5,13 @@ import { normalizePoint, toPoint } from '../../../../utils/geo.js';
 import { uploadDataUrl } from '../../../../utils/fileUpload.js';
 import { Driver } from '../models/Driver.js';
 import { DriverRegistrationSession } from '../models/DriverRegistrationSession.js';
-import { Owner } from '../../admin/models/Owner.js';
-import { ServiceStore } from '../../admin/models/ServiceStore.js';
-import { ServiceCenterStaff } from '../../admin/models/ServiceCenterStaff.js';
 import { ServiceLocation } from '../../admin/models/ServiceLocation.js';
-import { BusService } from '../../admin/models/BusService.js';
 import { Vehicle } from '../../admin/models/Vehicle.js';
 import { AdminBusinessSetting } from '../../admin/models/AdminBusinessSetting.js';
 import {
-  createBusService,
   listDriverDocumentUploadFields,
   listDriverNeededDocuments,
   listDriverVehicleFieldTemplates,
-  listOwnerDocumentUploadFields,
-  listOwnerNeededDocuments,
 } from '../../admin/services/adminService.js';
 import {
   findActiveEmployeeByCode,
@@ -36,7 +29,6 @@ import {
   verifyRcWithRecharge,
 } from '../../services/rechargeVerificationService.js';
 import { WalletTransaction } from '../models/WalletTransaction.js';
-import { BusDriver } from '../models/BusDriver.js';
 import { applyDriverWalletAdjustment } from './walletService.js';
 
 const OTP_TTL_MS = 10 * 60 * 1000;
@@ -52,7 +44,7 @@ const VEHICLE_NUMBER_PATTERNS = [
   /^[A-Z]{2}\d{1,2}\d{4}$/,
   /^\d{2}BH\d{4}[A-Z]{1,2}$/,
 ];
-const ALLOWED_SERVICE_CATEGORIES = ['taxi', 'outstation', 'delivery', 'pooling'];
+const ALLOWED_SERVICE_CATEGORIES = ['taxi', 'outstation', 'delivery'];
 
 const VEHICLE_TYPE_MAP = {
   v1: 'bike',

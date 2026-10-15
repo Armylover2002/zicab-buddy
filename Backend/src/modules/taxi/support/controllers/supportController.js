@@ -1,6 +1,5 @@
 import { ApiError } from '../../../../utils/ApiError.js';
 import { Admin } from '../../admin/models/Admin.js';
-import { Owner } from '../../admin/models/Owner.js';
 import { Driver } from '../../driver/models/Driver.js';
 import { User } from '../../user/models/User.js';
 import {
@@ -13,7 +12,7 @@ import {
   SupportTicketTitle,
 } from '../models/SupportTicketTitle.js';
 
-const REQUESTER_ROLES = new Set(['user', 'driver', 'owner']);
+const REQUESTER_ROLES = new Set(['user', 'driver']);
 const STATUS_SET = new Set(SUPPORT_TICKET_STATUS);
 const TYPE_SET = new Set(SUPPORT_TICKET_TYPES);
 const USER_TYPE_SET = new Set(SUPPORT_TICKET_USER_TYPES);
@@ -60,26 +59,14 @@ const buildRequesterSummary = async ({ role, id }) => {
     };
   }
 
-  if (normalizedRole === 'driver') {
-    const driver = await Driver.findById(requesterId).select('name phone city');
-    if (!driver) throw new ApiError(404, 'Driver not found');
-    return {
-      requesterRole: 'driver',
-      requesterId: driver._id,
-      requesterName: driver.name || 'Driver',
-      requesterPhone: driver.phone || '',
-      serviceLocation: driver.city || '',
-    };
-  }
-
-  const owner = await Owner.findById(requesterId).select('name owner_name mobile city');
-  if (!owner) throw new ApiError(404, 'Owner not found');
+  const driver = await Driver.findById(requesterId).select('name phone city');
+  if (!driver) throw new ApiError(404, 'Driver not found');
   return {
-    requesterRole: 'owner',
-    requesterId: owner._id,
-    requesterName: owner.owner_name || owner.name || 'Owner',
-    requesterPhone: owner.mobile || '',
-    serviceLocation: owner.city || '',
+    requesterRole: 'driver',
+    requesterId: driver._id,
+    requesterName: driver.name || 'Driver',
+    requesterPhone: driver.phone || '',
+    serviceLocation: driver.city || '',
   };
 };
 
@@ -161,7 +148,7 @@ export const getSupportTitlesForRequester = async (req, res) => {
 export const createSupportTicket = async (req, res) => {
   const requesterRole = toLowerText(req.auth?.role);
   if (!REQUESTER_ROLES.has(requesterRole)) {
-    throw new ApiError(403, 'Only user, driver or owner can raise support ticket');
+    throw new ApiError(403, 'Only user or driver can raise support ticket');
   }
 
   const titleId = toText(req.body.titleId);

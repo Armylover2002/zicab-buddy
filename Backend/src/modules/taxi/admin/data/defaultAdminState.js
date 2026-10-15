@@ -15,7 +15,6 @@ export const createDefaultAdminState = () => {
   const driverOneId = objectId();
   const driverTwoId = objectId();
   const driverThreeId = objectId();
-  const ownerOneId = objectId();
 
   return {
     users: [
@@ -199,14 +198,6 @@ export const createDefaultAdminState = () => {
         order: 1,
         title: 'Drive On Your Schedule',
         description: 'Go online when ready and track earnings live.',
-        active: true,
-      },
-      {
-        audience: 'owner',
-        screen: 'owner',
-        order: 1,
-        title: 'Scale Your Fleet',
-        description: 'Manage vehicles, drivers, and payouts from one panel.',
         active: true,
       },
     ],

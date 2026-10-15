@@ -87,40 +87,10 @@ export const ADMIN_SIDEBAR_SECTIONS = [
         ],
       },
       {
-        icon: Briefcase,
-        label: 'Rental',
+        icon: IndianRupee,
+        label: 'Package Pricing',
         subItems: [
-          { label: 'Service Stores', path: '/admin/pricing/service-stores', permission: 'service_stores.view' },
-          { label: 'Pending Service Stores', path: '/admin/pricing/service-stores/pending', permission: 'service_stores.view' },
-          { label: 'Pending Service Staff', path: '/admin/pricing/service-stores/pending-staff', permission: 'service_stores.view' },
-          { label: 'Rental Commission', path: '/admin/pricing/rental-commission', permission: 'rental.view' },
-          { label: 'Rental Vehicles', path: '/admin/pricing/rental-vehicles', permission: 'rental.view' },
-          { label: 'Track Vehicles', path: '/admin/pricing/rental-tracking', permission: 'rental.view' },
-          { label: 'Rental Requests', path: '/admin/pricing/rental-requests', permission: 'rental.view' },
-          { label: 'Rental Quote Requests', path: '/admin/pricing/rental-quotes', permission: 'rental.view' },
-          { label: 'Rental Package Types', path: '/admin/pricing/rental-packages', permission: 'rental.view' },
-          { label: 'Package Pricing', path: '/admin/pricing/package-pricing', permission: 'rental.view' },
-        ],
-      },
-      {
-        icon: Bus,
-        label: 'Bus Service',
-        subItems: [
-          { label: 'Fleet Manager', path: '/admin/bus-service', permission: 'bus_service.view' },
-          { label: 'Pending Bus Drivers', path: '/admin/bus-service/pending-drivers', permission: 'bus_service.view' },
-          { label: 'Bus Commission', path: '/admin/bus-service/commission', permission: 'bus_service.view' },
-          { label: 'Bus Bookings', path: '/admin/bus-service/bookings', permission: 'bus_service.view' },
-        ],
-      },
-      {
-        icon: Share2,
-        label: 'Car Pooling',
-        subItems: [
-          { label: 'Pending Pooling Drivers', path: '/admin/pooling/pending-drivers', permission: 'pooling.view' },
-          { label: 'Pooling Vehicles', path: '/admin/pooling/vehicles', permission: 'pooling.view' },
-          { label: 'Pooling Commission', path: '/admin/pooling/commission', permission: 'pooling.view' },
-          { label: 'Routes & Stops', path: '/admin/pooling/routes', permission: 'pooling.view' },
-          { label: 'Pooling Bookings', path: '/admin/pooling/bookings', permission: 'pooling.view' },
+          { label: 'Set Prices', path: '/admin/pricing/package-pricing', permission: 'set_prices.view' },
         ],
       },
       {
@@ -192,7 +162,6 @@ export const ADMIN_SIDEBAR_SECTIONS = [
           { label: 'Add Employee', path: '/admin/employees/create', permission: 'employees.view' },
         ],
       },
-      { icon: Briefcase, label: 'Owner Management', path: '/admin/owners/dashboard', permission: 'owners.view' },
       {
         icon: FileText,
         label: 'Report',
@@ -200,9 +169,7 @@ export const ADMIN_SIDEBAR_SECTIONS = [
           { label: 'User Report', path: '/admin/reports/user', permission: 'reports.view' },
           { label: 'Driver Report', path: '/admin/reports/driver', permission: 'reports.view' },
           { label: 'Driver Duty Report', path: '/admin/reports/driver-duty', permission: 'reports.view' },
-          { label: 'Owner Report', path: '/admin/reports/owner', permission: 'reports.view' },
           { label: 'Finance Report', path: '/admin/reports/finance', permission: 'reports.view' },
-          { label: 'Fleet Finance Report', path: '/admin/reports/fleet-finance', permission: 'reports.view' },
         ],
       },
       {

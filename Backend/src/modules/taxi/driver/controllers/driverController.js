@@ -6,27 +6,14 @@ import { env } from "../../../../config/env.js";
 import { ApiError } from "../../../../utils/ApiError.js";
 import { normalizePoint, toPoint } from "../../../../utils/geo.js";
 import { Driver } from "../models/Driver.js";
-import { BusDriver } from "../models/BusDriver.js";
 import { DriverLoginSession } from "../models/DriverLoginSession.js";
 import { WalletTransaction } from "../models/WalletTransaction.js";
 import { WithdrawalRequest } from "../../admin/models/WithdrawalRequest.js";
 import { Ride } from "../../user/models/Ride.js";
-import { BusBooking } from "../../user/models/BusBooking.js";
-import { BusSeatHold } from "../../user/models/BusSeatHold.js";
-import { Owner } from "../../admin/models/Owner.js";
-import { BusService } from "../../admin/models/BusService.js";
-import { PoolingVehicle } from "../../admin/models/PoolingVehicle.js";
-import { PoolingBooking } from "../../admin/models/PoolingBooking.js";
 import { ServiceLocation } from "../../admin/models/ServiceLocation.js";
-import { ServiceStore } from "../../admin/models/ServiceStore.js";
-import { ServiceCenterStaff } from "../../admin/models/ServiceCenterStaff.js";
 import { Vehicle } from "../../admin/models/Vehicle.js";
-import { RentalVehicleType } from "../../admin/models/RentalVehicleType.js";
-import { RentalBookingRequest } from "../../admin/models/RentalBookingRequest.js";
-import { CustomerBiometricProfile } from "../../admin/models/CustomerBiometricProfile.js";
 import { AdminBusinessSetting } from "../../admin/models/AdminBusinessSetting.js";
 import { Notification } from "../../admin/promotions/models/Notification.js";
-import { FleetVehicle } from "../../admin/models/FleetVehicle.js";
 import { Zone } from "../models/Zone.js";
 import { uploadDataUrl } from "../../../../utils/fileUpload.js";
 import {
@@ -48,30 +35,14 @@ import {
   startDriverLoginOtp,
   verifyDriverLoginOtp,
 } from "../services/loginOtpService.js";
-import {
-  completePoolingDriverOnboarding,
-  getPoolingDriverOnboardingSession,
-  savePoolingDriverOnboardingDetails,
-  startPoolingDriverOnboarding,
-  verifyPoolingDriverOnboardingOtp,
-} from "../services/poolingOnboardingService.js";
 import { verifyAccessToken } from "../../services/tokenService.js";
 import { clearDriverActiveRideIfStale } from "../../services/rideService.js";
 import { getWalletSettings } from "../../services/appSettingsService.js";
 import { RIDE_LIVE_STATUS, RIDE_STATUS } from "../../constants/index.js";
 import {
-  createRentalVehicleType,
-  createBusService,
-  deleteBusService,
-  deleteRentalVehicleType,
   ensureThirdPartySettings,
   listDriverNeededDocuments,
   listDriverVehicleFieldTemplates,
-  listBusServices,
-  listOwnerNeededDocuments,
-  listRentalVehicleTypes,
-  updateBusService,
-  updateRentalVehicleType,
 } from "../../admin/services/adminService.js";
 import { resolveConfiguredGatewayCredentials } from "../../services/paymentGatewayService.js";
 import { assignPushTokenToEntity } from "../../services/pushTokenService.js";
@@ -2920,76 +2891,6 @@ export const goOnline = async (req, res) => {
 };
 
 export const getCurrentDriver = async (req, res) => {
-  if (String(req.auth?.role || "").toLowerCase() === "service_center_staff") {
-    const access = await resolveAuthenticatedServiceCenterAccess(req);
-
-    if (!access?.staff || !access?.center) {
-      throw new ApiError(404, "Service center staff not found");
-    }
-
-    res.json({
-      success: true,
-      data: serializeServiceCenterStaffProfile(access.staff, access.center),
-    });
-    return;
-  }
-
-  if (String(req.auth?.role || "").toLowerCase() === "service_center") {
-    const center = await resolveAuthenticatedServiceCenter(req);
-
-    if (!center) {
-      throw new ApiError(404, "Service center not found");
-    }
-
-    res.json({
-      success: true,
-      data: serializeServiceCenterProfile(center),
-    });
-    return;
-  }
-
-  if (String(req.auth?.role || "").toLowerCase() === "owner") {
-    const owner = await Owner.findById(req.auth.sub);
-
-    if (!owner) {
-      throw new ApiError(404, "Owner not found");
-    }
-
-    res.json({
-      success: true,
-      data: serializeOwnerProfile(owner.toObject()),
-    });
-    return;
-  }
-
-  if (String(req.auth?.role || "").toLowerCase() === "bus_driver") {
-    const busDriver = await BusDriver.findById(req.auth.sub);
-
-    if (!busDriver) {
-      throw new ApiError(404, "Bus driver not found");
-    }
-
-    res.json({
-      success: true,
-      data: await serializeBusDriverProfile(busDriver),
-    });
-    return;
-  }
-
-  if (String(req.auth?.role || "").toLowerCase() === "pooling_driver") {
-    const poolingVehicle = await PoolingVehicle.findById(req.auth.sub).lean();
-
-    if (!poolingVehicle) {
-      throw new ApiError(404, "Pooling driver not found");
-    }
-
-    res.json({
-      success: true,
-      data: serializePoolingDriverProfile(poolingVehicle),
-    });
-    return;
-  }
-
   const driver = await Driver.findById(req.auth.sub)
     .populate("zoneId", "name service_location_id");
 
@@ -3013,7 +2914,6 @@ export const getCurrentDriver = async (req, res) => {
       name: driver.name,
       phone: driver.phone,
       email: driver.email,
-      owner_id: driver.owner_id || null,
       salary: Number(driver.salary || 0),
       profileImage: driver.profileImage || "",
       gender: driver.gender,
@@ -3057,23 +2957,6 @@ export const getCurrentDriver = async (req, res) => {
       onboarding: driver.onboarding || {},
       todaySummary: todaySummary || buildDriverTodaySummaryFromDocument(driver),
     },
-  });
-};
-
-export const getPoolingDriverBookings = async (req, res) => {
-  if (String(req.auth?.role || "").toLowerCase() !== "pooling_driver") {
-    throw new ApiError(403, "Pooling driver access is required");
-  }
-
-  const bookings = await PoolingBooking.find({ vehicle: req.auth.sub })
-    .populate("user", "name phone email")
-    .populate("route", "routeName originLabel destinationLabel")
-    .sort({ travelDate: -1, createdAt: -1 })
-    .lean();
-
-  res.json({
-    success: true,
-    data: bookings.map(serializePoolingDriverBooking),
   });
 };
 
@@ -3254,11 +3137,6 @@ export const cancelDriverScheduledRide = async (req, res) => {
 
 const DRIVER_PUSH_ROLE_MODEL_MAP = {
   driver: Driver,
-  owner: Owner,
-  pooling_driver: PoolingVehicle,
-  bus_driver: BusDriver,
-  service_center: ServiceStore,
-  service_center_staff: ServiceCenterStaff,
 };
 
 const resolvePushTokenEntityForRole = async (req) => {
@@ -9765,54 +9643,6 @@ export const startDriverLoginOtpRequest = async (req, res) => {
 export const verifyDriverLoginOtpRequest = async (req, res) => {
   const result = await verifyDriverLoginOtp(req.body);
   res.json({ success: true, data: result });
-};
-
-export const startPoolingOnboardingRequest = async (req, res) => {
-  const result = await startPoolingDriverOnboarding(req.body);
-  res.status(201).json({ success: true, data: result });
-};
-
-export const verifyPoolingOnboardingOtpRequest = async (req, res) => {
-  const result = await verifyPoolingDriverOnboardingOtp(req.body);
-  res.json({ success: true, data: result });
-};
-
-export const getPoolingOnboardingSessionRequest = async (req, res) => {
-  const result = await getPoolingDriverOnboardingSession({
-    registrationId: req.params.registrationId,
-    phone: req.query.phone,
-  });
-  res.json({ success: true, data: result });
-};
-
-export const savePoolingOnboardingDetailsRequest = async (req, res) => {
-  const result = await savePoolingDriverOnboardingDetails(req.body);
-  res.json({ success: true, data: result });
-};
-
-export const completePoolingOnboardingRequest = async (req, res) => {
-  const result = await completePoolingDriverOnboarding(req.body);
-  res.status(201).json({ success: true, data: result });
-};
-
-export const uploadPoolingOnboardingImageRequest = async (req, res) => {
-  const image = String(req.body?.image || "").trim();
-
-  if (!image) {
-    throw new ApiError(400, "Image data is required");
-  }
-
-  const result = await uploadDataUrl({
-    dataUrl: image,
-    publicIdPrefix: "pooling-driver-onboarding",
-  });
-
-  res.status(201).json({
-    success: true,
-    data: {
-      url: result.secureUrl,
-    },
-  });
 };
 
 export const startOnboarding = async (req, res) => {

@@ -28,8 +28,6 @@ import {
 } from 'lucide-react';
 
 const ADMIN_MODE = 'admin';
-const OWNER_MODE = 'owner';
-const MODE_STORAGE_KEY = 'adminPanelMode';
 const SIDEBAR_EXPANSION_STORAGE_KEY = 'adminSidebarExpandedGroups';
 const NOTIFICATION_DISMISS_STORAGE_KEY = 'adminNotificationDismissals';
 
@@ -535,81 +533,6 @@ const NestedGroup = ({
   );
 };
 
-const ModeSwitcher = ({ mode, setMode }) => {
-  const [isOpen, setIsOpen] = useState(false);
-  const dropdownRef = useRef(null);
-
-  const options = [
-    { id: ADMIN_MODE, label: 'Admin Terminal', subtitle: 'Platform Core', icon: Monitor },
-    { id: OWNER_MODE, label: 'Fleet Console', subtitle: 'Owner Ops', icon: Briefcase },
-  ];
-
-  const active = options.find((o) => o.id === mode) || options[0];
-
-  useEffect(() => {
-    const clickOut = (e) => {
-      if (dropdownRef.current && !dropdownRef.current.contains(e.target)) setIsOpen(false);
-    };
-    document.addEventListener('mousedown', clickOut);
-    return () => document.removeEventListener('mousedown', clickOut);
-  }, []);
-
-  return (
-    <div className="relative" ref={dropdownRef}>
-      <button
-        type="button"
-        onClick={() => setIsOpen(!isOpen)}
-        className="group flex items-center gap-2 rounded border border-slate-200 bg-white px-2.5 py-1.5 transition-all hover:border-slate-300 hover:bg-slate-50"
-      >
-        <div className="flex h-7 w-7 items-center justify-center rounded bg-slate-900 text-white shrink-0">
-          {active.id === ADMIN_MODE ? <Monitor size={14} strokeWidth={2} /> : <Briefcase size={14} strokeWidth={2} />}
-        </div>
-        <div className="text-left hidden sm:flex flex-col justify-center">
-          <p className="text-[12px] font-semibold text-slate-900 whitespace-nowrap">{active.label}</p>
-          <p className="text-[10px] font-medium text-slate-500 whitespace-nowrap">{active.subtitle}</p>
-        </div>
-        <ChevronDown size={14} className={`text-slate-400 ml-1 transition-transform duration-300 ${isOpen ? 'rotate-180' : ''}`} />
-      </button>
-
-      <AnimatePresence>
-        {isOpen && (
-          <motion.div
-            initial={{ opacity: 0, y: 10, scale: 0.95 }}
-            animate={{ opacity: 1, y: 0, scale: 1 }}
-            exit={{ opacity: 0, y: 10, scale: 0.95 }}
-            className="absolute right-0 top-full z-50 mt-2 w-48 overflow-hidden rounded-xl border border-slate-200 bg-white p-1.5 shadow-xl"
-          >
-            <div className="px-3 py-2 border-b border-slate-100 mb-1">
-              <p className="text-[10px] font-semibold text-slate-500">Switch Workspace</p>
-            </div>
-            {options.map((option) => {
-              const selected = option.id === mode;
-              return (
-                <button
-                  key={option.id}
-                  type="button"
-                  onClick={() => {
-                    setMode(option.id);
-                    setIsOpen(false);
-                  }}
-                  className={`flex w-full items-center gap-3 rounded-lg px-3 py-2 text-left transition-all ${selected ? 'bg-slate-900 text-white shadow-md' : 'hover:bg-slate-50 text-slate-600'
-                    }`}
-                >
-                  <div className={`h-1.5 w-1.5 rounded-full ${selected ? 'bg-white' : 'bg-slate-300'}`} />
-                  <div>
-                    <p className={`text-[12px] font-semibold ${selected ? 'text-white' : 'text-slate-900'}`}>{option.label}</p>
-                    <p className={`text-[10px] font-medium mt-0.5 ${selected ? 'text-slate-300' : 'text-slate-500'}`}>{option.subtitle}</p>
-                  </div>
-                </button>
-              );
-            })}
-          </motion.div>
-        )}
-      </AnimatePresence>
-    </div>
-  );
-};
-
 const AdminLayout = () => {
   const navigate = useNavigate();
   const location = useLocation();
@@ -658,11 +581,9 @@ const AdminLayout = () => {
     return Number(window.localStorage.getItem('adminLastSeenBookingCount') || 0);
   });
   const [adminProfile, setAdminProfile] = useState(() => readAdminProfile());
-  const isOwnerRoute = location.pathname.startsWith('/admin/owners') || location.pathname.startsWith('/admin/fleet');
   const isAdminChatRoute = pathMatches(location.pathname, '/admin/chat');
   const isTripsRoute = pathMatches(location.pathname, '/admin/trips');
-  const isOwnerBookingsRoute = pathMatches(location.pathname, '/admin/owners/bookings');
-  const mode = isOwnerRoute ? OWNER_MODE : ADMIN_MODE;
+  const mode = ADMIN_MODE;
 
   const appName = settings.general?.app_name || 'App';
   
@@ -776,12 +697,6 @@ const AdminLayout = () => {
   }, [isTripsRoute, rideRequestUnreadTotal]);
 
   useEffect(() => {
-    if (isOwnerBookingsRoute && bookingUnreadTotal > 0) {
-      setLastSeenBookingCount(bookingUnreadTotal);
-    }
-  }, [isOwnerBookingsRoute, bookingUnreadTotal]);
-
-  useEffect(() => {
     if (rideRequestUnreadTotal < lastSeenRideRequestCount) {
       setLastSeenRideRequestCount(rideRequestUnreadTotal);
     }
@@ -806,56 +721,18 @@ const AdminLayout = () => {
 
   const adminSections = useMemo(() => ADMIN_SIDEBAR_SECTIONS, []);
 
-  const ownerSections = useMemo(
-    () => [
-      {
-        title: 'Owner Mode',
-        items: [
-          {
-            icon: Briefcase,
-            label: 'Owner Management',
-            subItems: [
-              { label: 'Owner Dashboard', path: '/admin/owners/dashboard', permission: 'owners.view' },
-              { label: 'Pending Owners', path: '/admin/owners/pending', permission: 'owners.view' },
-              { label: 'Manage Owners', path: '/admin/owners', permission: 'owners.view' },
-              {
-                label: 'Owner Wallet',
-                subItems: [{ label: 'Withdrawal Requests', path: '/admin/owners/wallet/withdrawals', permission: 'wallet.view' }],
-              },
-              {
-                label: 'Fleet Management',
-                subItems: [
-                  { label: 'Fleet Drivers', path: '/admin/fleet/drivers', permission: 'owners.view' },
-                  { label: 'Pending Fleet Drivers', path: '/admin/fleet/blocked', permission: 'owners.view' },
-                  { label: 'Fleet Needed Document', path: '/admin/fleet/documents', permission: 'owners.view' },
-                  { label: 'Manage Fleet', path: '/admin/fleet/manage', permission: 'owners.view' },
-                ],
-              },
-              { label: 'Owner Needed Document', path: '/admin/owners/documents', permission: 'owners.view' },
-              { label: 'Deleted Owners', path: '/admin/owners/deleted', permission: 'owners.view' },
-              { label: 'Bookings', path: '/admin/owners/bookings', permission: 'owners.view' },
-            ],
-          },
-        ],
-      },
-    ],
-    []
-  );
-
   const sidebarSections = useMemo(
-    () => filterSidebarSectionsByAccess(mode === OWNER_MODE ? ownerSections : adminSections, adminProfile),
-    [adminProfile, adminSections, mode, ownerSections],
+    () => filterSidebarSectionsByAccess(adminSections, adminProfile),
+    [adminProfile, adminSections],
   );
   const rideRequestUnreadCount = Math.max(0, rideRequestUnreadTotal - lastSeenRideRequestCount);
-  const bookingUnreadCount = Math.max(0, bookingUnreadTotal - lastSeenBookingCount);
   const effectiveChatUnreadCount = Math.max(0, chatUnreadCount);
   const unreadCountsByPath = useMemo(
     () => ({
       '/admin/trips': rideRequestUnreadCount,
-      '/admin/owners/bookings': bookingUnreadCount,
       '/admin/chat': effectiveChatUnreadCount,
     }),
-    [bookingUnreadCount, effectiveChatUnreadCount, rideRequestUnreadCount],
+    [effectiveChatUnreadCount, rideRequestUnreadCount],
   );
   const pageTitle = resolvePageTitle(location.pathname, sidebarSections, appName);
   const searchEntries = useMemo(() => flattenSearchEntries(flattenItems(sidebarSections)), [sidebarSections]);
@@ -904,18 +781,6 @@ const AdminLayout = () => {
       : notificationTab === 'bookings'
         ? pagedBookings.results.length
         : visibleChatNotifications.length;
-
-  const setMode = (nextMode) => {
-    localStorage.setItem(MODE_STORAGE_KEY, nextMode);
-
-    if (nextMode === OWNER_MODE && !isOwnerRoute) {
-      navigate('/admin/owners/dashboard');
-    }
-
-    if (nextMode === ADMIN_MODE && isOwnerRoute) {
-      navigate('/admin/dashboard');
-    }
-  };
 
   useEffect(() => {
     const handleDocumentClick = (event) => {
@@ -1056,7 +921,7 @@ const AdminLayout = () => {
       window.clearInterval(intervalId);
       window.removeEventListener('focus', handleWindowFocus);
     };
-  }, [isAdminChatRoute, isOwnerBookingsRoute, isTripsRoute, mode]);
+  }, [isAdminChatRoute, isTripsRoute, mode]);
 
   useEffect(() => {
     if (!isNotificationsOpen) return undefined;
@@ -1290,11 +1155,11 @@ const AdminLayout = () => {
                   className="flex flex-col"
                 >
                   <h3 className="text-sm font-bold leading-tight text-slate-900 tracking-tight">
-                    {mode === OWNER_MODE ? 'Owner Panel' : appName || 'APPZETO'}
+                    {appName || 'APPZETO'}
                   </h3>
                   <div className="mt-0.5 flex items-center gap-1.5">
                     <span className="text-[9px] font-bold uppercase tracking-wider text-slate-500">
-                      {mode === OWNER_MODE ? 'Fleet Console' : 'System Hub'}
+                      System Hub
                     </span>
                   </div>
                 </motion.div>
@@ -1329,7 +1194,7 @@ const AdminLayout = () => {
                     <SidebarGroup
                       key={item.label}
                       {...item}
-                      forceOpen={mode === OWNER_MODE}
+                      forceOpen={false}
                       isCollapsed={isCollapsed}
                       pathname={location.pathname}
                       groupKey={`${section.title}:${item.label}`}
@@ -1655,9 +1520,6 @@ const AdminLayout = () => {
                 </div>
               </div>
             </div>
-
-            <ModeSwitcher mode={mode} setMode={setMode} />
-            <div className="h-6 w-px bg-slate-200 mx-1"></div>
 
             <div ref={userMenuRef} className="relative flex items-center">
               <button

@@ -1,6 +1,5 @@
 import { useLocation } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
-import RentalLocationTracker from '../modules/user/components/RentalLocationTracker';
 import ScrollToTop from '../components/app/ScrollToTop';
 import UserAccountInvalidationListener from '../components/app/UserAccountInvalidationListener';
 import UserUpcomingRideReminderBootstrap from '../components/app/UserUpcomingRideReminderBootstrap';
@@ -34,8 +33,7 @@ const MainLayout = ({ children }) => {
   const isAdminPath =
     location.pathname.startsWith('/admin') ||
     location.pathname.startsWith('/user-import') ||
-    location.pathname.startsWith('/driver-import') ||
-    location.pathname.startsWith('/owner');
+    location.pathname.startsWith('/driver-import');
 
   const isUserPath = !isAdminPath && !isStaticPath;
   const isSplashPath = location.pathname === '/taxi/user/splash';
@@ -48,7 +46,6 @@ const MainLayout = ({ children }) => {
   if (isSplashPath || isAuthPath) {
     return (
       <>
-        <RentalLocationTracker />
         <ScrollToTop />
         <UserAccountInvalidationListener />
         <UserUpcomingRideReminderBootstrap />
@@ -84,7 +81,6 @@ const MainLayout = ({ children }) => {
 
   return (
     <>
-      <RentalLocationTracker />
       <ScrollToTop />
       <UserAccountInvalidationListener />
       <UserUpcomingRideReminderBootstrap />

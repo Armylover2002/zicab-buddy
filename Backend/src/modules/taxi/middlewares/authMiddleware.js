@@ -1,11 +1,6 @@
 import { Admin } from '../admin/models/Admin.js';
-import { Owner } from '../admin/models/Owner.js';
-import { ServiceStore } from '../admin/models/ServiceStore.js';
-import { ServiceCenterStaff } from '../admin/models/ServiceCenterStaff.js';
 import { ApiError } from '../../../utils/ApiError.js';
 import { Driver } from '../driver/models/Driver.js';
-import { BusDriver } from '../driver/models/BusDriver.js';
-import { PoolingVehicle } from '../admin/models/PoolingVehicle.js';
 import { User } from '../user/models/User.js';
 import { verifyAccessToken } from '../services/tokenService.js';
 import {
@@ -17,11 +12,6 @@ const roleModelMap = {
   admin: Admin,
   'super-admin': Admin,
   driver: Driver,
-  pooling_driver: PoolingVehicle,
-  bus_driver: BusDriver,
-  owner: Owner,
-  service_center: ServiceStore,
-  service_center_staff: ServiceCenterStaff,
   user: User,
 };
 
@@ -85,62 +75,6 @@ export const authenticate = (allowedRoles = [], options = {}) => async (req, _re
       (entity.approve === false || String(entity.status || '').toLowerCase() === 'pending')
     ) {
       throw new ApiError(403, 'Driver account is pending approval');
-    }
-
-    if (
-      normalizedRole === 'owner' &&
-      !allowPending &&
-      (entity.active === false ||
-        entity.approve === false ||
-        String(entity.status || '').toLowerCase() === 'pending')
-    ) {
-      throw new ApiError(403, 'Owner account is pending approval');
-    }
-
-    if (
-      normalizedRole === 'bus_driver' &&
-      !allowPending &&
-      (entity.active === false ||
-        entity.approve === false ||
-        ['pending', 'blocked'].includes(String(entity.status || '').toLowerCase()))
-    ) {
-      throw new ApiError(403, 'Bus driver account is pending approval');
-    }
-
-    if (
-      normalizedRole === 'pooling_driver' &&
-      !allowPending &&
-      (entity.approve === false || String(entity.status || '').toLowerCase() === 'pending')
-    ) {
-      throw new ApiError(403, 'Pooling driver account is pending approval');
-    }
-
-    if (
-      normalizedRole === 'pooling_driver' &&
-      (entity.poolingEnabled === false ||
-        ['inactive', 'maintenance'].includes(String(entity.status || '').toLowerCase()))
-    ) {
-      throw new ApiError(403, 'Pooling driver account is inactive');
-    }
-
-    if (
-      normalizedRole === 'service_center' &&
-      !allowPending &&
-      (entity.active === false ||
-        entity.approve === false ||
-        String(entity.status || '').toLowerCase() === 'inactive')
-    ) {
-      throw new ApiError(403, 'Service center account is inactive');
-    }
-
-    if (
-      normalizedRole === 'service_center_staff' &&
-      !allowPending &&
-      (entity.active === false ||
-        entity.approve === false ||
-        String(entity.status || '').toLowerCase() === 'inactive')
-    ) {
-      throw new ApiError(403, 'Service center staff account is inactive');
     }
 
     attachResolvedAuth(req, payload);
