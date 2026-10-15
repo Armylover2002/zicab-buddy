@@ -8,12 +8,7 @@ import {
   AdminBannerImage,
   AdminBidRideSettings,
   AdminDriverSubscriptionSettings,
-  AdminBlockedFleetDrivers,
-  AdminBusBookingManager,
   AdminChat,
-  AdminBusCommissionManager,
-  AdminBusServiceDetails,
-  AdminBusServiceManager,
   AdminCareerApplications,
   AdminCMSBuilder,
   AdminLandingContent,
@@ -24,7 +19,6 @@ import {
   AdminDashboard,
   AdminDeleteRequestUsers,
   AdminDeliveries,
-  AdminDeletedOwners,
   AdminDispatcherAddons,
   AdminDriverAudit,
   AdminDriverBulkUpload,
@@ -54,11 +48,6 @@ import {
   AdminFinance,
   AdminFinanceReport,
   AdminFirebaseSettings,
-  AdminFleetDriverCreate,
-  AdminFleetDrivers,
-  AdminFleetFinanceReport,
-  AdminFleetNeededDocuments,
-  AdminFleetNeededDocumentsCreate,
   AdminGeneralSettings,
   AdminGeoFencing,
   AdminGodsEye,
@@ -71,52 +60,23 @@ import {
   AdminLayout,
   AdminLogin,
   AdminMailSettings,
-  AdminManageFleet,
-  AdminManageFleetCreate,
-  AdminManageOwners,
   AdminMapSettings,
   AdminNegativeBalanceDrivers,
   AdminNotificationChannels,
   AdminOngoing,
   AdminOnboardingScreens,
-  AdminOwnerBookings,
-  AdminOwnerCreate,
-  AdminOwnerDashboard,
-  AdminOwnerDetails,
-  AdminOwnerNeededDocuments,
-  AdminOwnerNeededDocumentsCreate,
-  AdminOwnerPasswordUpdate,
-  AdminOwnerReport,
   AdminPaymentGateways,
   AdminRechargeApiSettings,
   AdminPaymentMethods,
-  AdminPendingBusDrivers,
   AdminPendingDrivers,
-  AdminPendingOwners,
-  AdminPendingPoolingDrivers,
-  AdminPendingServiceStaff,
-  AdminPendingServiceStores,
-  AdminPoolingBookings,
-  AdminPoolingCommissionManager,
-  AdminPoolingManager,
-  AdminPoolingVehicleForm,
-  AdminPoolingVehicles,
   AdminPreferences,
   AdminPromoCodes,
   AdminReferralDashboard,
   AdminReferralTranslation,
-  AdminRentalBookingRequests,
-  AdminRentalCommissionManager,
-  AdminRentalPackageTypes,
-  AdminRentalQuoteRequests,
-  AdminRentalTracking,
-  AdminRentalTrackingDetail,
-  AdminRentalVehicleTypes,
   AdminSMSGateways,
   AdminSafetyCenter,
   AdminSendNotification,
   AdminServiceLocation,
-  AdminServiceStores,
   AdminSetPackagePrices,
   AdminSetPrices,
   AdminSupportTickets,
@@ -141,8 +101,6 @@ import {
   AdminWalletSettings,
   AdminWithdrawalRequestDetail,
   AdminWithdrawalRequestDrivers,
-  AdminWithdrawalRequestOwnerDetail,
-  AdminWithdrawalRequestOwners,
   AdminZoneManagement,
   AdminUserAppManagement,
 } from './lazyPages';
@@ -198,9 +156,6 @@ const adminRoutes = (
     <Route path="/driver-import/create" element={<AdminLayout />}>
       <Route index element={<AdminDriverImportCreate />} />
     </Route>
-    <Route path="/owner/create" element={<AdminLayout />}>
-      <Route index element={<AdminOwnerCreate />} />
-    </Route>
     <Route path="/admin" element={<AdminLayout />}>
       <Route index element={<Navigate to="/admin/dashboard" />} />
       <Route path="dashboard" element={<AdminDashboard />} />
@@ -212,24 +167,6 @@ const adminRoutes = (
       <Route path="trips" element={<AdminTrips />} />
       <Route path="deliveries" element={<AdminDeliveries />} />
       <Route path="ongoing" element={<AdminOngoing />} />
-      <Route path="bus-service" element={<AdminBusServiceManager />} />
-      <Route path="bus-service/pending-drivers" element={<AdminPendingBusDrivers />} />
-      <Route path="bus-service/create" element={<AdminBusServiceManager mode="create" />} />
-      <Route path="bus-service/edit/:id" element={<AdminBusServiceManager mode="edit" />} />
-      <Route path="bus-service/commission" element={<AdminBusCommissionManager />} />
-      <Route path="bus-service/bookings" element={<AdminBusBookingManager />} />
-      <Route path="bus-service/:id" element={<AdminBusServiceDetails />} />
-      <Route path="pooling" element={<Navigate to="/admin/pooling/routes" replace />} />
-      <Route path="pooling/routes" element={<AdminPoolingManager />} />
-      <Route path="pooling/pending-drivers" element={<AdminPendingPoolingDrivers />} />
-      <Route path="pooling/create" element={<AdminPoolingManager mode="create" />} />
-      <Route path="pooling/edit/:id" element={<AdminPoolingManager mode="edit" />} />
-      <Route path="pooling/vehicles" element={<AdminPoolingVehicles />} />
-      <Route path="pooling/commission" element={<AdminPoolingCommissionManager />} />
-      <Route path="pooling/vehicles/create" element={<AdminPoolingVehicleForm />} />
-      <Route path="pooling/vehicles/edit/:id" element={<AdminPoolingVehicleForm />} />
-      <Route path="pooling/vehicles/view/:id" element={<AdminPoolingVehicleForm mode="view" />} />
-      <Route path="pooling/bookings" element={<AdminPoolingBookings />} />
       <Route path="wallet/payment" element={<AdminWalletPayment />} />
       <Route path="users" element={<AdminUserList />} />
       <Route path="users/create" element={<AdminUserCreate />} />
@@ -282,26 +219,6 @@ const adminRoutes = (
       <Route path="management/admins/create" element={<AdminAdminCreate />} />
       <Route path="management/admins/edit/:id" element={<AdminAdminCreate />} />
 
-      <Route path="owners/dashboard" element={<AdminOwnerDashboard />} />
-      <Route path="owners/pending" element={<AdminPendingOwners />} />
-      <Route path="owners" element={<AdminManageOwners />} />
-      <Route path="owners/create" element={<AdminOwnerCreate />} />
-      <Route path="owners/:id/password" element={<AdminOwnerPasswordUpdate />} />
-      <Route path="owners/:id" element={<AdminOwnerDetails />} />
-      <Route path="owners/:id/documents" element={<AdminOwnerDetails />} />
-      <Route path="owners/wallet/withdrawals" element={<AdminWithdrawalRequestOwners />} />
-      <Route path="owners/wallet/withdrawals/:id" element={<AdminWithdrawalRequestOwnerDetail />} />
-      <Route path="fleet/drivers" element={<AdminFleetDrivers />} />
-      <Route path="fleet/drivers/create" element={<AdminFleetDriverCreate />} />
-      <Route path="fleet/blocked" element={<AdminBlockedFleetDrivers />} />
-      <Route path="fleet/documents" element={<AdminFleetNeededDocuments />} />
-      <Route path="fleet/documents/create" element={<AdminFleetNeededDocumentsCreate />} />
-      <Route path="fleet/manage" element={<AdminManageFleet />} />
-      <Route path="fleet/manage/create" element={<AdminManageFleetCreate />} />
-      <Route path="owners/documents" element={<AdminOwnerNeededDocuments />} />
-      <Route path="owners/documents/create" element={<AdminOwnerNeededDocumentsCreate />} />
-      <Route path="owners/deleted" element={<AdminDeletedOwners />} />
-      <Route path="owners/bookings" element={<AdminOwnerBookings />} />
       <Route
         path="referrals/config"
         element={
@@ -330,12 +247,6 @@ const adminRoutes = (
         <Route path="service-location/jurisdictions/:jurisdictionName" element={<AdminServiceLocation mode="jurisdictions" />} />
         <Route path="service-location/add" element={<AdminServiceLocation mode="create" />} />
         <Route path="service-location/edit/:id" element={<AdminServiceLocation mode="edit" />} />
-        <Route path="service-stores" element={<AdminServiceStores />} />
-        <Route path="service-stores/pending" element={<AdminPendingServiceStores />} />
-        <Route path="service-stores/pending-staff" element={<AdminPendingServiceStaff />} />
-        <Route path="rental-commission" element={<AdminRentalCommissionManager />} />
-        <Route path="service-stores/add" element={<AdminServiceStores mode="create" />} />
-        <Route path="service-stores/edit/:id" element={<AdminServiceStores mode="edit" />} />
         <Route path="app-modules" element={<AdminAppModules />} />
         <Route path="app-modules/create" element={<AdminAppModules mode="create" />} />
         <Route path="app-modules/edit/:id" element={<AdminAppModules mode="edit" />} />
@@ -349,17 +260,6 @@ const adminRoutes = (
         <Route path="vehicle-type" element={<AdminVehicleType />} />
         <Route path="vehicle-type/create" element={<AdminVehicleType mode="create" />} />
         <Route path="vehicle-type/edit/:id" element={<AdminVehicleType mode="edit" />} />
-        <Route path="rental-vehicles" element={<AdminRentalVehicleTypes />} />
-        <Route path="rental-vehicles/create" element={<AdminRentalVehicleTypes mode="create" />} />
-        <Route path="rental-vehicles/edit/:id" element={<AdminRentalVehicleTypes mode="edit" />} />
-        <Route path="rental-vehicles/view/:id" element={<AdminRentalVehicleTypes mode="view" />} />
-        <Route path="rental-tracking" element={<AdminRentalTracking />} />
-        <Route path="rental-tracking/:id" element={<AdminRentalTrackingDetail />} />
-        <Route path="rental-requests" element={<AdminRentalBookingRequests />} />
-        <Route path="rental-quotes" element={<AdminRentalQuoteRequests />} />
-        <Route path="rental-packages" element={<AdminRentalPackageTypes />} />
-        <Route path="rental-packages/create" element={<AdminRentalPackageTypes mode="create" />} />
-        <Route path="rental-packages/edit/:id" element={<AdminRentalPackageTypes mode="edit" />} />
         <Route path="set-price" element={<AdminSetPrices />} />
         <Route path="set-price/create" element={<AdminSetPrices mode="create" />} />
         <Route path="set-price/edit/:id" element={<AdminSetPrices mode="edit" />} />
@@ -390,9 +290,7 @@ const adminRoutes = (
       <Route path="reports/user" element={<AdminUserReport />} />
       <Route path="reports/driver" element={<AdminDriverReport />} />
       <Route path="reports/driver-duty" element={<AdminDriverDutyReport />} />
-      <Route path="reports/owner" element={<AdminOwnerReport />} />
       <Route path="reports/finance" element={<AdminFinanceReport />} />
-      <Route path="reports/fleet-finance" element={<AdminFleetFinanceReport />} />
 
       <Route path="masters/languages" element={<AdminLanguages />} />
       <Route path="masters/countries" element={<AdminCountryManagement />} />

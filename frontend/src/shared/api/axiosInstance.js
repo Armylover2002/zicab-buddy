@@ -158,14 +158,7 @@ const normalizeAuthRole = (role) => {
   return value;
 };
 
-const DRIVER_PORTAL_ROLES = new Set([
-  'driver',
-  'owner',
-  'pooling_driver',
-  'bus_driver',
-  'service_center',
-  'service_center_staff',
-]);
+const DRIVER_PORTAL_ROLES = new Set(['driver']);
 
 const getSessionItem = (key) => {
   try {
@@ -178,12 +171,12 @@ const getSessionItem = (key) => {
 const getStoredTokenByRole = (role) => {
   const normalizedRole = normalizeAuthRole(role);
 
-  // For driver/owner roles we probe both sessionStorage AND localStorage so
+  // For the driver role we probe both sessionStorage AND localStorage so
   // that after a Flutter WebView hard-refresh (which wipes sessionStorage) we
   // can still find the persisted token in localStorage and avoid sending
   // unauthenticated requests that produce "Authorization token is required".
   const entries = (
-    normalizedRole === 'driver' || normalizedRole === 'owner'
+    normalizedRole === 'driver'
       ? [
           getSessionItem('driverToken'),
           getSessionItem('token'),
@@ -199,7 +192,7 @@ const getStoredTokenByRole = (role) => {
   return entries.find((token) => {
     const tokenRole = normalizeAuthRole(getTokenPayload(token)?.role);
 
-    if ((normalizedRole === 'driver' || normalizedRole === 'owner') && DRIVER_PORTAL_ROLES.has(tokenRole)) {
+    if (normalizedRole === 'driver' && DRIVER_PORTAL_ROLES.has(tokenRole)) {
       return true;
     }
 
@@ -216,11 +209,6 @@ const getRoleFromPathname = () => {
 
   if (pathname.includes('/admin')) {
     return 'admin';
-  }
-
-  // Owners currently authenticate with driver tokens (fleet-owner flow).
-  if (pathname.includes('/taxi/owner')) {
-    return 'driver';
   }
 
   if (pathname.includes('/taxi/driver') || pathname.includes('/driver')) {
@@ -248,7 +236,6 @@ const resolveAuthTokenForRequest = (config = {}) => {
   const normalizedChatRole = String(chatRole || '').toLowerCase();
   const userToken = getStoredTokenByRole('user');
   const driverToken = getStoredTokenByRole('driver');
-  const ownerToken = getStoredTokenByRole('owner');
   const adminToken = getStoredTokenByRole('admin') || localStorage.getItem('adminToken');
 
   const isPublicUserRoute =
@@ -273,10 +260,7 @@ const resolveAuthTokenForRequest = (config = {}) => {
       return adminToken;
     }
     if (normalizedChatRole === 'driver') {
-      return driverToken || ownerToken;
-    }
-    if (normalizedChatRole === 'owner') {
-      return ownerToken || driverToken;
+      return driverToken;
     }
     if (normalizedChatRole === 'user') {
       return userToken;
@@ -292,7 +276,7 @@ const resolveAuthTokenForRequest = (config = {}) => {
       return adminToken;
     }
     if (pathRole === 'driver') {
-      return driverToken || ownerToken;
+      return driverToken;
     }
     return userToken;
   }
@@ -302,10 +286,10 @@ const resolveAuthTokenForRequest = (config = {}) => {
   }
 
   if (isDriverRoute) {
-    return driverToken || ownerToken;
+    return driverToken;
   }
 
-  return userToken || driverToken || ownerToken || adminToken || null;
+  return userToken || driverToken || adminToken || null;
 };
 
 const clearStaleAuthState = (role = '', staleToken = '') => {
@@ -332,7 +316,7 @@ const clearStaleAuthState = (role = '', staleToken = '') => {
     localStorage.removeItem('userInfo');
   }
 
-  if (!normalizedRole || normalizedRole === 'driver' || normalizedRole === 'owner') {
+  if (!normalizedRole || normalizedRole === 'driver') {
     if (!staleToken || localStorage.getItem('driverToken') === staleToken) {
       localStorage.removeItem('driverToken');
     }
