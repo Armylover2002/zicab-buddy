@@ -8,7 +8,6 @@ import { createWebsiteBookingRequest } from '../services/websiteBookingService.j
 import { UserWallet } from '../models/UserWallet.js';
 import { AdminBusinessSetting } from '../../admin/models/AdminBusinessSetting.js';
 import { Notification } from '../../admin/promotions/models/Notification.js';
-import { BusService } from '../../admin/models/BusService.js';
 import { Driver } from '../../driver/models/Driver.js';
 import { comparePassword, hashPassword, signAccessToken } from '../services/authService.js';
 import { env } from '../../../../config/env.js';
@@ -22,19 +21,12 @@ import {
   verifyUserOtp,
 } from '../services/userOtpService.js';
 import { assignPushTokenToEntity } from '../../services/pushTokenService.js';
-import { BusSeatHold } from '../models/BusSeatHold.js';
-import { BusBooking } from '../models/BusBooking.js';
-import { RentalBookingRequest } from '../../admin/models/RentalBookingRequest.js';
-import { RentalQuoteRequest } from '../../admin/models/RentalQuoteRequest.js';
-import { RentalVehicleType } from '../../admin/models/RentalVehicleType.js';
-import { ServiceStore } from '../../admin/models/ServiceStore.js';
 import { SetPrice } from '../../admin/models/SetPrice.js';
 import { applyDriverWalletAdjustment } from '../../driver/services/walletService.js';
 import { emitToDriver } from '../../services/dispatchService.js';
 import { sendPushNotificationToEntities } from '../../services/pushNotificationService.js';
-import { buildRentalTrackingSnapshot, updateUserRentalTracking } from '../../services/rentalTrackingService.js';
 import { listDriverServiceLocations } from '../../driver/services/serviceLocationService.js';
-import { listServiceStores, listSetPrices, listZones } from '../../admin/services/adminService.js';
+import { listSetPrices, listZones } from '../../admin/services/adminService.js';
 import { findZoneByPickup } from '../../services/matchingService.js';
 import { classifyTrip } from '../../services/tripCategoryService.js';
 import { getSurgeAt, getSurgeProfiles, recordSurgeDemand, surgeForVehicle } from '../../services/surgeService.js';

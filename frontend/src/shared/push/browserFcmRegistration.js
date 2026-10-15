@@ -70,10 +70,6 @@ const getRoleFromPathname = () => {
 
   const pathname = String(window.location.pathname || '').toLowerCase();
 
-  if (pathname.includes('/taxi/owner')) {
-    return 'driver';
-  }
-
   if (pathname.includes('/taxi/driver') || pathname.includes('/driver')) {
     return 'driver';
   }
