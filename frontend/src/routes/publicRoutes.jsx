@@ -7,13 +7,7 @@ import {
   AddressSettings,
   AirportCab,
   AirportCabConfirm,
-  BikeRentalHome,
   BlogPage,
-  BusConfirm,
-  BusDetails,
-  BusHome,
-  BusList,
-  BusSeats,
   CabHome,
   CabSharing,
   CareersPage,
@@ -37,11 +31,6 @@ import {
   PromoCodes,
   RazorpayLaunchPage,
   RazorpayStatusPage,
-  RentalConfirmed,
-  RentalDeposit,
-  RentalKYC,
-  RentalSchedule,
-  RentalVehicleDetail,
   RideDetail,
   RideTracking,
   SearchingDriver,
@@ -106,7 +95,6 @@ const publicRoutes = (
         <Route path="/referral" element={<UserReferral />} />
         <Route path="/promo" element={<PromoCodes />} />
         <Route path="/notifications" element={<UserNotifications />} />
-        <Route path="/bus" element={<BusHome />} />
         <Route path="/ride/support" element={<Support />} />
       </Route>
 
@@ -126,12 +114,6 @@ const publicRoutes = (
       <Route path="/parcel/tracking" element={<ParcelTracking />} />
       <Route path="/parcel/detail/:id" element={<RideDetail />} />
 
-      <Route path="/rental" element={<BikeRentalHome />} />
-      <Route path="/rental/vehicle" element={<RentalVehicleDetail />} />
-      <Route path="/rental/schedule" element={<RentalSchedule />} />
-      <Route path="/rental/kyc" element={<RentalKYC />} />
-      <Route path="/rental/deposit" element={<RentalDeposit />} />
-      <Route path="/rental/confirmed" element={<RentalConfirmed />} />
       <Route path="/intercity" element={<IntercityHome />} />
       <Route path="/intercity/vehicle" element={<IntercityVehicle />} />
       <Route path="/intercity/details" element={<IntercityDetails />} />
@@ -146,10 +128,6 @@ const publicRoutes = (
       <Route path="/cab/spiritual" element={<SpiritualTrip />} />
       <Route path="/cab/spiritual-vehicle" element={<SpiritualTripVehicle />} />
       <Route path="/cab/spiritual-confirm" element={<SpiritualTripConfirm />} />
-      <Route path="/bus/list" element={<BusList />} />
-      <Route path="/bus/seats" element={<BusSeats />} />
-      <Route path="/bus/details" element={<BusDetails />} />
-      <Route path="/bus/confirm" element={<BusConfirm />} />
       <Route path="/tours" element={<ComingSoon />} />
 
       <Route path="/wallet" element={<Wallet />} />

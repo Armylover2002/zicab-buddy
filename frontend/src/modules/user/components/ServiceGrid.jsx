@@ -88,7 +88,7 @@ const isNormalRideModule = (module = {}) => {
     return false;
   }
 
-  if (['rental', 'outstation', 'bus', 'pooling'].includes(serviceType)) {
+  if (['outstation'].includes(serviceType)) {
     return false;
   }
 
@@ -582,15 +582,7 @@ const ServiceGrid = ({
     const moduleName = String(module?.name || '').trim().toLowerCase();
 
     if (transportType === 'delivery') return '/taxi/user/parcel/type';
-    if (serviceType === 'rental') return '/taxi/user/rental';
     if (serviceType === 'outstation') return '/taxi/user/intercity';
-    if (serviceType === 'pooling' || moduleName.includes('pooling')) {
-      return '/taxi/user/pooling';
-    }
-
-    if (serviceType === 'bus' || transportType === 'bus' || moduleName.includes('bus')) {
-      return '/taxi/user/bus';
-    }
 
     if (
       ['normal', 'taxi', 'ride', 'ride_hailing', 'ride-hailing'].includes(serviceType) ||

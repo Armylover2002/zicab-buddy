@@ -13,14 +13,7 @@ const NATIVE_FCM_GLOBAL_KEYS = [
   '__firebaseToken',
   'firebaseToken',
 ];
-const DRIVER_PORTAL_ROLES = new Set([
-  'driver',
-  'owner',
-  'pooling_driver',
-  'bus_driver',
-  'service_center',
-  'service_center_staff',
-]);
+const DRIVER_PORTAL_ROLES = new Set(['driver']);
 
 const decodeBase64Url = (value) => {
   const normalized = String(value || '').replace(/-/g, '+').replace(/_/g, '/');
@@ -61,9 +54,6 @@ const inferRole = (explicitRole) => {
   }
 
   const pathname = String(window.location.pathname || '').toLowerCase();
-  if (pathname.includes('/taxi/owner')) {
-    return 'owner';
-  }
   if (pathname.includes('/taxi/driver')) {
     return 'driver';
   }
@@ -89,9 +79,6 @@ const inferRole = (explicitRole) => {
 const getActivePortalRole = () => {
   const pathname = String(window.location.pathname || '').toLowerCase();
 
-  if (pathname.includes('/taxi/owner')) {
-    return 'owner';
-  }
   if (pathname.includes('/taxi/driver') || pathname.includes('/driver')) {
     return 'driver';
   }
@@ -239,11 +226,9 @@ const submitFcmToken = async ({ token, role, platform = 'mobile' }) => {
   const normalizedRole =
     activePortalRole === 'user'
       ? 'user'
-      : activePortalRole === 'owner'
-        ? 'owner'
-        : activePortalRole === 'driver'
-          ? 'driver'
-          : inferredRole;
+      : activePortalRole === 'driver'
+        ? 'driver'
+        : inferredRole;
   const normalizedPlatform = String(platform || 'mobile').trim().toLowerCase() || 'mobile';
   const normalizedToken = String(token || '').trim();
 

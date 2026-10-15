@@ -16,43 +16,17 @@ import {
 import {
   addDriverEmergencyContact,
   completeOnboarding,
-  createOwnerBusService,
-  cancelOwnerBusBookingSeats,
   createDriverPaymentQr,
   getDriverPaymentUpi,
   saveDriverPaymentUpi,
   handleDriverRazorpayWalletTopupCallback,
-  createServiceCenterStaffMember,
-  enrollServiceCenterStaffBiometric,
-  updateServiceCenterStaffMember,
   createDriverWithdrawalRequest,
-  createServiceCenterVehicle,
-  captureServiceCenterBookingFingerprint,
-  completePoolingOnboardingRequest,
-  createOwnerFleetDriver,
-  createOwnerPoolingVehicle,
-  updateOwnerFleetDriver,
-  updateOwnerPoolingVehicle,
-  updateOwnerFleetVehicle,
-  deleteServiceCenterBookingFingerprint,
   deleteCurrentDriverAccount,
-  deleteServiceCenterVehicle,
-  deleteServiceCenterStaffMember,
-  updateServiceCenterVehicle,
   deleteDriverEmergencyContact,
   claimDriverIncentiveReward,
   goOffline,
   goOnline,
-  createBusDriverReservation,
-  getBusDriverLiveTrip,
-  updateBusDriverSchedules,
-  startBusDriverLiveTrip,
-  updateBusDriverLiveLocation,
-  updateBusDriverLiveTripStatus,
   getCurrentDriver,
-  getPoolingDriverBookings,
-  getBusDriverSeatLayout,
-  listBusDriverBookings,
   getDriverPaymentQrStatus,
   getDriverApprovalStatus,
   getDriverDocumentTemplates,
@@ -62,26 +36,13 @@ import {
   getDriverNotifications,
   cancelDriverScheduledRide,
   getDriverScheduledRides,
-  getServiceCenterBookings,
-  getServiceCenterBookingBiometrics,
-  getServiceCenterStaffBiometrics,
-  getServiceCenterStaffMembers,
-  getServiceCenterVehicles,
-  listOwnerBusServices,
-  getOwnerPoolingVehicles,
   saveDriverFcmToken,
-  getOwnerFleetDrivers,
-  getOwnerFleetDashboard,
-  getOwnerFleetZones,
-  getOwnerBusBookingCalendar,
-  getOwnerBusBookings,
   getMyWallet,
   getOnboardingSession,
   getOnboardingSignupOptions,
   getServiceLocations,
   loginDriver,
   startDriverLoginOtpRequest,
-  startPoolingOnboardingRequest,
   saveOnboardingDocuments,
   saveOnboardingRoleDetails,
   saveOnboardingRole,
@@ -92,10 +53,10 @@ import {
   verifyOnboardingVehicleRc,
   registerDriver,
   requestDriverAccountDeletion,
-    startOnboarding,
-    topUpMyWallet,
-    createDriverWalletTopupOrder,
-    createDriverPhonePeWalletTopupOrder,
+  startOnboarding,
+  topUpMyWallet,
+  createDriverWalletTopupOrder,
+  createDriverPhonePeWalletTopupOrder,
   verifyDriverWalletTopup,
   verifyDriverPhonePeWalletTopup,
   verifyCurrentDriverBankDetails,
@@ -105,25 +66,11 @@ import {
   verifyCurrentDriverGstinDocument,
   verifyCurrentDriverPanDocument,
   verifyCurrentDriverRcDocument,
-
   updateCurrentDriver,
   updateDriverVehicle,
-  updateOwnerBusService,
-  updateServiceCenterBookingBiometrics,
-  updateServiceCenterBooking,
-  verifyServiceCenterBookingFingerprint,
   verifyOnboardingOtp,
   verifyDriverLoginOtpRequest,
-  verifyPoolingOnboardingOtpRequest,
-  addOwnerVehicle,
-  deleteOwnerBusService,
-  deleteOwnerPoolingVehicle,
-  getOwnerFleetVehicles,
-  deleteOwnerFleetVehicle,
   updateCurrentDriverDocument,
-  getPoolingOnboardingSessionRequest,
-  savePoolingOnboardingDetailsRequest,
-  uploadPoolingOnboardingImageRequest,
 } from "../controllers/driverController.js";
 import { triggerDriverSosAlert } from '../../safety/controllers/safetyController.js';
 import { listActiveSurges } from '../../services/surgeService.js';
@@ -140,32 +87,6 @@ driverRouter.post(
   otpVerifyRateLimit,
   asyncHandler(verifyDriverLoginOtpRequest),
 );
-driverRouter.post(
-  "/pooling/onboarding/send-otp",
-  otpSendRateLimit,
-  asyncHandler(startPoolingOnboardingRequest),
-);
-driverRouter.post(
-  "/pooling/onboarding/verify-otp",
-  otpVerifyRateLimit,
-  asyncHandler(verifyPoolingOnboardingOtpRequest),
-);
-driverRouter.get(
-  "/pooling/onboarding/session/:registrationId",
-  asyncHandler(getPoolingOnboardingSessionRequest),
-);
-driverRouter.patch(
-  "/pooling/onboarding/details",
-  asyncHandler(savePoolingOnboardingDetailsRequest),
-);
-driverRouter.post(
-  "/pooling/onboarding/complete",
-  asyncHandler(completePoolingOnboardingRequest),
-);
-driverRouter.post(
-  "/pooling/onboarding/upload-image",
-  asyncHandler(uploadPoolingOnboardingImageRequest),
-);
 // Offers dispatched to this driver that the socket may have missed. Polled by
 // the app on reconnect and on every `ride_request` push, so a dropped socket
 // no longer means a lost ride.
@@ -176,17 +97,12 @@ driverRouter.get(
 );
 driverRouter.get(
   "/me",
-  authenticate(["driver", "owner", "pooling_driver", "bus_driver", "service_center", "service_center_staff"], { allowPending: true }),
+  authenticate(["driver"], { allowPending: true }),
   asyncHandler(getCurrentDriver),
-);
-driverRouter.get(
-  "/pooling/bookings",
-  authenticate(["pooling_driver"], { allowPending: true }),
-  asyncHandler(getPoolingDriverBookings),
 );
 driverRouter.patch(
   "/me",
-  authenticate(["driver", "owner"]),
+  authenticate(["driver"]),
   asyncHandler(updateCurrentDriver),
 );
 driverRouter.post(
@@ -199,49 +115,9 @@ driverRouter.post(
   authenticate(["driver"]),
   asyncHandler(verifyCurrentDriverUpiDetails),
 );
-driverRouter.get(
-  "/bus/seats",
-  authenticate(["bus_driver"]),
-  asyncHandler(getBusDriverSeatLayout),
-);
-driverRouter.get(
-  "/bus/bookings",
-  authenticate(["bus_driver"]),
-  asyncHandler(listBusDriverBookings),
-);
-driverRouter.post(
-  "/bus/reservations",
-  authenticate(["bus_driver"]),
-  asyncHandler(createBusDriverReservation),
-);
-driverRouter.get(
-  "/bus/live-trip",
-  authenticate(["bus_driver"]),
-  asyncHandler(getBusDriverLiveTrip),
-);
-driverRouter.post(
-  "/bus/live-trip/start",
-  authenticate(["bus_driver"]),
-  asyncHandler(startBusDriverLiveTrip),
-);
-driverRouter.patch(
-  "/bus/live-trip/location",
-  authenticate(["bus_driver"]),
-  asyncHandler(updateBusDriverLiveLocation),
-);
-driverRouter.patch(
-  "/bus/live-trip/status",
-  authenticate(["bus_driver"]),
-  asyncHandler(updateBusDriverLiveTripStatus),
-);
-driverRouter.patch(
-  "/bus/schedules",
-  authenticate(["bus_driver"]),
-  asyncHandler(updateBusDriverSchedules),
-);
 driverRouter.delete(
   "/me",
-  authenticate(["driver", "owner"]),
+  authenticate(["driver"]),
   asyncHandler(deleteCurrentDriverAccount),
 );
 driverRouter.post(
@@ -251,7 +127,7 @@ driverRouter.post(
 );
 driverRouter.post(
   "/sos",
-  authenticate(["driver", "owner"]),
+  authenticate(["driver"]),
   asyncHandler(triggerDriverSosAlert),
 );
 driverRouter.get(
@@ -271,7 +147,7 @@ driverRouter.delete(
 );
 driverRouter.patch(
   "/documents/:documentKey",
-  authenticate(["driver", "owner"], { allowPending: true }),
+  authenticate(["driver"], { allowPending: true }),
   asyncHandler(updateCurrentDriverDocument),
 );
 driverRouter.post(
@@ -316,14 +192,7 @@ driverRouter.post(
 );
 driverRouter.post(
   "/fcm-token",
-  authenticate([
-    "driver",
-    "owner",
-    "pooling_driver",
-    "bus_driver",
-    "service_center",
-    "service_center_staff",
-  ], { allowPending: true }),
+  authenticate(["driver"], { allowPending: true }),
   asyncHandler(saveDriverFcmToken),
 );
 driverRouter.get(
@@ -408,191 +277,6 @@ driverRouter.patch(
   asyncHandler(updateDriverVehicle),
 );
 driverRouter.get("/approval-status", asyncHandler(getDriverApprovalStatus));
-driverRouter.get(
-  "/fleet/dashboard",
-  authenticate(["owner"]),
-  asyncHandler(getOwnerFleetDashboard),
-);
-driverRouter.get(
-  "/fleet/bus-services",
-  authenticate(["owner"]),
-  asyncHandler(listOwnerBusServices),
-);
-driverRouter.get(
-  "/fleet/bus-bookings",
-  authenticate(["owner"]),
-  asyncHandler(getOwnerBusBookings),
-);
-driverRouter.get(
-  "/fleet/bus-bookings/calendar",
-  authenticate(["owner"]),
-  asyncHandler(getOwnerBusBookingCalendar),
-);
-driverRouter.post(
-  "/fleet/bus-services",
-  authenticate(["owner"]),
-  asyncHandler(createOwnerBusService),
-);
-driverRouter.patch(
-  "/fleet/bus-services/:id",
-  authenticate(["owner"]),
-  asyncHandler(updateOwnerBusService),
-);
-driverRouter.delete(
-  "/fleet/bus-services/:id",
-  authenticate(["owner"]),
-  asyncHandler(deleteOwnerBusService),
-);
-driverRouter.post(
-  "/fleet/bus-bookings/:id/cancel",
-  authenticate(["owner"]),
-  asyncHandler(cancelOwnerBusBookingSeats),
-);
-driverRouter.get(
-  "/fleet/drivers",
-  authenticate(["driver", "owner"]),
-  asyncHandler(getOwnerFleetDrivers),
-);
-driverRouter.get(
-  "/fleet/zones",
-  authenticate(["driver", "owner"]),
-  asyncHandler(getOwnerFleetZones),
-);
-driverRouter.post(
-  "/fleet/drivers",
-  authenticate(["driver", "owner"]),
-  asyncHandler(createOwnerFleetDriver),
-);
-driverRouter.patch(
-  "/fleet/drivers/:driverId",
-  authenticate(["driver", "owner"]),
-  asyncHandler(updateOwnerFleetDriver),
-);
-driverRouter.get(
-  "/fleet/vehicles",
-  authenticate(["driver", "owner"]),
-  asyncHandler(getOwnerFleetVehicles),
-);
-driverRouter.post(
-  "/fleet/vehicles",
-  authenticate(["driver", "owner"]),
-  asyncHandler(addOwnerVehicle),
-);
-driverRouter.patch(
-  "/fleet/vehicles/:vehicleId",
-  authenticate(["driver", "owner"]),
-  asyncHandler(updateOwnerFleetVehicle),
-);
-driverRouter.delete(
-  "/fleet/vehicles/:vehicleId",
-  authenticate(["driver", "owner"]),
-  asyncHandler(deleteOwnerFleetVehicle),
-);
-driverRouter.get(
-  "/fleet/pooling-vehicles",
-  authenticate(["owner"]),
-  asyncHandler(getOwnerPoolingVehicles),
-);
-driverRouter.post(
-  "/fleet/pooling-vehicles",
-  authenticate(["owner"]),
-  asyncHandler(createOwnerPoolingVehicle),
-);
-driverRouter.patch(
-  "/fleet/pooling-vehicles/:vehicleId",
-  authenticate(["owner"]),
-  asyncHandler(updateOwnerPoolingVehicle),
-);
-driverRouter.delete(
-  "/fleet/pooling-vehicles/:vehicleId",
-  authenticate(["owner"]),
-  asyncHandler(deleteOwnerPoolingVehicle),
-);
-driverRouter.get(
-  "/service-center/staff",
-  authenticate(["service_center"]),
-  asyncHandler(getServiceCenterStaffMembers),
-);
-driverRouter.post(
-  "/service-center/staff",
-  authenticate(["service_center"]),
-  asyncHandler(createServiceCenterStaffMember),
-);
-driverRouter.patch(
-  "/service-center/staff/:staffId",
-  authenticate(["service_center"]),
-  asyncHandler(updateServiceCenterStaffMember),
-);
-driverRouter.delete(
-  "/service-center/staff/:staffId",
-  authenticate(["service_center"]),
-  asyncHandler(deleteServiceCenterStaffMember),
-);
-driverRouter.get(
-  "/service-center/staff/:staffId/biometrics",
-  authenticate(["service_center", "service_center_staff"]),
-  asyncHandler(getServiceCenterStaffBiometrics),
-);
-driverRouter.post(
-  "/service-center/staff/biometrics/enroll",
-  authenticate(["service_center", "service_center_staff"]),
-  asyncHandler(enrollServiceCenterStaffBiometric),
-);
-driverRouter.get(
-  "/service-center/bookings",
-  authenticate(["service_center", "service_center_staff"]),
-  asyncHandler(getServiceCenterBookings),
-);
-driverRouter.get(
-  "/service-center/bookings/:bookingId/biometrics",
-  authenticate(["service_center", "service_center_staff"]),
-  asyncHandler(getServiceCenterBookingBiometrics),
-);
-driverRouter.patch(
-  "/service-center/bookings/:bookingId/biometrics",
-  authenticate(["service_center", "service_center_staff"]),
-  asyncHandler(updateServiceCenterBookingBiometrics),
-);
-driverRouter.post(
-  "/service-center/bookings/:bookingId/biometrics/fingers",
-  authenticate(["service_center", "service_center_staff"]),
-  asyncHandler(captureServiceCenterBookingFingerprint),
-);
-driverRouter.delete(
-  "/service-center/bookings/:bookingId/biometrics/fingers/:fingerCode",
-  authenticate(["service_center", "service_center_staff"]),
-  asyncHandler(deleteServiceCenterBookingFingerprint),
-);
-driverRouter.post(
-  "/service-center/bookings/:bookingId/biometrics/verify",
-  authenticate(["service_center", "service_center_staff"]),
-  asyncHandler(verifyServiceCenterBookingFingerprint),
-);
-driverRouter.patch(
-  "/service-center/bookings/:bookingId",
-  authenticate(["service_center", "service_center_staff"]),
-  asyncHandler(updateServiceCenterBooking),
-);
-driverRouter.get(
-  "/service-center/vehicles",
-  authenticate(["service_center", "service_center_staff"]),
-  asyncHandler(getServiceCenterVehicles),
-);
-driverRouter.post(
-  "/service-center/vehicles",
-  authenticate(["service_center"]),
-  asyncHandler(createServiceCenterVehicle),
-);
-driverRouter.patch(
-  "/service-center/vehicles/:vehicleId",
-  authenticate(["service_center"]),
-  asyncHandler(updateServiceCenterVehicle),
-);
-driverRouter.delete(
-  "/service-center/vehicles/:vehicleId",
-  authenticate(["service_center"]),
-  asyncHandler(deleteServiceCenterVehicle),
-);
 driverRouter.get("/service-locations", asyncHandler(getServiceLocations));
 driverRouter.get(
   "/document-templates",
