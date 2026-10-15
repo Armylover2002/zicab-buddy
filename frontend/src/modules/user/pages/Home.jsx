@@ -783,10 +783,7 @@ const Home = () => {
     const cleanRoute = (route) => {
       if (!route) return '/taxi/user/ride/select-location';
       if (route === '/delivery') return '/taxi/user/parcel/type';
-      if (route === '/rental') return '/taxi/user/rental';
-      if (route === '/bus') return '/taxi/user/bus';
       if (route === '/truck') return '/taxi/user/ride/select-location';
-      if (route === '/self-drive') return '/taxi/user/rental';
       return route;
     };
 
@@ -853,20 +850,6 @@ const Home = () => {
       return;
     }
 
-    if (name.includes("rental") || serviceType.includes("rental") || name.includes("self-drive")) {
-      navigate("/taxi/user/rental");
-      return;
-    }
-
-    if (name.includes("bus") || transportType.includes("bus") || serviceType.includes("bus")) {
-      navigate("/taxi/user/bus");
-      return;
-    }
-
-    if (name.includes("pooling") || serviceType.includes("pooling")) {
-      navigate("/taxi/user/pooling");
-      return;
-    }
 
     if (name.includes("outstation") || name.includes("intercity") || serviceType.includes("intercity")) {
       navigate("/taxi/user/intercity");

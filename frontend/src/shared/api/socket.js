@@ -68,19 +68,12 @@ const getSessionItem = (key) => {
   }
 };
 
-const DRIVER_PORTAL_ROLES = new Set([
-  'driver',
-  'owner',
-  'pooling_driver',
-  'bus_driver',
-  'service_center',
-  'service_center_staff',
-]);
+const DRIVER_PORTAL_ROLES = new Set(['driver']);
 
 const getStoredTokenByRole = (role) => {
   const normalizedRole = String(role || '').toLowerCase();
   const entries = (
-    normalizedRole === 'driver' || normalizedRole === 'owner'
+    normalizedRole === 'driver'
       ? [
           getSessionItem('driverToken'),
           getSessionItem('token'),
@@ -96,7 +89,7 @@ const getStoredTokenByRole = (role) => {
   return entries.find((token) => {
     const tokenRole = String(getTokenPayload(token)?.role || '').toLowerCase();
 
-    if ((normalizedRole === 'driver' || normalizedRole === 'owner') && DRIVER_PORTAL_ROLES.has(tokenRole)) {
+    if (normalizedRole === 'driver' && DRIVER_PORTAL_ROLES.has(tokenRole)) {
       return true;
     }
 
@@ -109,25 +102,20 @@ const resolveTokenForRole = (role) => {
   const adminToken = getStoredTokenByRole('admin') || localStorage.getItem('adminToken');
   const userToken = getStoredTokenByRole('user');
   const driverToken = getStoredTokenByRole('driver');
-  const ownerToken = getStoredTokenByRole('owner');
 
   if (normalizedRole === 'admin') {
     return adminToken;
   }
 
   if (normalizedRole === 'driver') {
-    return driverToken || ownerToken;
-  }
-
-  if (normalizedRole === 'owner') {
-    return ownerToken || driverToken;
+    return driverToken;
   }
 
   if (normalizedRole === 'user') {
     return userToken;
   }
 
-  return userToken || driverToken || ownerToken || adminToken || null;
+  return userToken || driverToken || adminToken || null;
 };
 
 class SocketService {
